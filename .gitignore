@@ -1,0 +1,6 @@
+# Claude Code local files and logs
+.claude/logs/
+.claude/settings.local.json
+.claude/CLAUDE.local.md
+
+test_screenshots/

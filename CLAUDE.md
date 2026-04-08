@@ -7,7 +7,7 @@ Space Missions Dashboard Project
 Create an interactive dashboard in browser (on local computer, no Internet required) to visualize and analyze historical space mission data from 1957 onwards.
 
 # Dataset
-We will work with `space_missions.csv`, the functions we build should load data from this csv file in the same directory. The csv file contains the following columns:
+We will work with `data/space_missions.csv`, the functions we build should load data from this csv file in the same directory. The csv file contains the following columns:
 - **Company**: Organization that conducted the mission
 - **Location**: Launch site location
 - **Date**: Launch date (YYYY-MM-DD format)
@@ -35,7 +35,28 @@ Create an interactive dashboard that includes:
 - Make your suggestions and let me pick
 - Use any libraries/frameworks appropriate for the chosen language
 
-## 3. Required Functions 
+## 3. Project Structure
+- Use **multiple files** for better maintainability — do not put everything in one file:
+  - `index.html` — shell layout, nav bar, filter bar, stat cards
+  - `js/data.js` — CSV loading, parsing, validation, in-memory data store
+  - `js/functions.js` — all 8 required analytical functions (exposed on `window`)
+  - `js/charts.js` — all chart creation and outlier logic
+  - `js/table.js` — data table rendering, sorting, pagination
+  - `js/filters.js` — filter controls, event wiring, reactive update orchestration
+  - `js/ui.js` — summary stats, logo, error banners, empty states
+  - `css/styles.css` — custom styles and responsive breakpoints
+  - `libs/` — embedded offline copies of third-party libraries
+  - `tests.html` — standalone test runner
+  - `js/tests.js` — test logic and screenshot capture
+- Add a **Reload CSV** control in the navigation bar (in addition to the initial Load CSV file picker) that re-reads the currently loaded file, clears all state, and re-renders charts and table from scratch
+
+## 4. Test Screenshots
+- The test runner (`tests.html`) must automatically save a screenshot of the browser viewport for each failing test case into the `test_screenshots/` subfolder
+- Screenshot filenames must follow the pattern: `test_<functionName>_<caseName>_<timestamp>.png`
+- Example: `test_getSuccessRate_unknownCompany_20260408.png`
+- The `test_screenshots/` folder is listed in `.gitignore` and must **never** be read by Claude when loading context (to save tokens)
+
+## 5. Required Functions
 Code must include the following functions with **exact** function signatures and return types. These will be tested programmatically:
 
 ### Function 1: `getMissionCountByCompany(companyName: str) -> int`
@@ -135,28 +156,28 @@ Code must include the following functions with **exact** function signatures and
   def getAverageMissionsPerYear(2010, 2020)  # Returns: 87.45
   ```
 
-## 5. Precision
+## 6. Precision
 Use 5 digits of precision for each float, 5 specifically, so if the output is an average, such as in function 8 in this instruction file
 output something like 87.33333
 
-## 6. Validation
+## 7. Validation
 - Add input validation to your functions: missing value, invalid format 
 
-## 7. Testing
+## 8. Testing
 - Build test cases as part of the project
 - Test should cover all major browser types: Chrome, Safari, Firefox, Edge
 - Test all functions for each code change
 
-## 8. Responsiveness
+## 9. Responsiveness
 The page should be responsive to small screen sizes
 
-## 9. Error Handling and Edge Case Hanlding
+## 10. Error Handling and Edge Case Handling
 - Include error handling for edge cases: unexpected column name, corrupted file, too-large file
 - empty result: UI should show a user-friendly message eg. "No data match your critiera" instead of just showing a blank table
 - outliers: If very few data points in a visualization are outliers (much larger compared to the rest), don't show the outliers up to scale and distort the whole visualization. Instead, show that they're scaled down so user knows they're not up to scale
 - pagination: for very large dataset, use pagination, but also support showing all in one page with warning
 - if libraries fail to load, show a user-friendly message
 
-## 10. Reasoning
+## 11. Reasoning
 Give some information why you chose a visualization and a visualization method 
 
