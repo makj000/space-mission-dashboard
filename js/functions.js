@@ -196,3 +196,61 @@ function getMissionsByYear(year) {
 }
 
 window.getMissionsByYear = getMissionsByYear;
+
+// ── Function 7: getMostUsedRocket ─────────────────────────────────────────────
+
+/**
+ * Returns the name of the rocket used the most times.
+ * Ties broken alphabetically (first name ascending).
+ *
+ * @returns {string}  Rocket name, or empty string if no data.
+ */
+function getMostUsedRocket() {
+  _requireData();
+
+  const counts = {};
+  for (const row of DataStore.getData()) {
+    const rocket = (row.Rocket || '').trim();
+    if (rocket) counts[rocket] = (counts[rocket] || 0) + 1;
+  }
+
+  const entries = Object.entries(counts);
+  if (entries.length === 0) return '';
+
+  return entries
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0];
+}
+
+window.getMostUsedRocket = getMostUsedRocket;
+
+// ── Function 8: getAverageMissionsPerYear ─────────────────────────────────────
+
+/**
+ * Calculates the average number of missions per year over a given range.
+ *
+ * @param  {number} startYear  Start year (inclusive, positive integer).
+ * @param  {number} endYear    End year (inclusive, positive integer).
+ * @returns {number}           Float rounded to 5 decimal digits (e.g. 87.33333).
+ * @throws {Error}             If either year is not a positive integer, or
+ *                             startYear > endYear.
+ */
+function getAverageMissionsPerYear(startYear, endYear) {
+  _requirePositiveInteger(startYear, 'startYear', 'getAverageMissionsPerYear');
+  _requirePositiveInteger(endYear,   'endYear',   'getAverageMissionsPerYear');
+  if (startYear > endYear) {
+    throw new Error(
+      `getAverageMissionsPerYear: startYear (${startYear}) must be ≤ endYear (${endYear})`
+    );
+  }
+  _requireData();
+
+  let total = 0;
+  for (let y = startYear; y <= endYear; y++) {
+    total += getMissionsByYear(y);
+  }
+
+  const years = endYear - startYear + 1;
+  return parseFloat((total / years).toFixed(5));
+}
+
+window.getAverageMissionsPerYear = getAverageMissionsPerYear;

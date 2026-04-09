@@ -356,6 +356,97 @@ const Charts = (() => {
     }
   }
 
+  // ── Chart 5: Cost Trends over Time (line) ────────────────────────────────────
+
+  function _renderCostTrends(rows) {
+    const id = 'chart-cost-trends';
+    _destroy(id);
+
+    const noteEl = document.getElementById('chart-cost-trends-note');
+    if (noteEl) noteEl.textContent = '';
+
+    if (!rows || rows.length === 0) {
+      UI.showEmpty(document.getElementById('chart-cost-trends-wrap'));
+      return;
+    }
+
+    // Average cost per year (skip rows with empty/invalid Price)
+    const yearTotals = {};
+    const yearCounts = {};
+    for (const r of rows) {
+      const price = parseFloat(r.Price);
+      if (!isFinite(price) || price <= 0) continue;
+      const y = (r.Date || '').slice(0, 4);
+      if (!/^\d{4}$/.test(y)) continue;
+      yearTotals[y] = (yearTotals[y] || 0) + price;
+      yearCounts[y] = (yearCounts[y] || 0) + 1;
+    }
+
+    const years = Object.keys(yearTotals).sort();
+    if (years.length === 0) {
+      UI.showEmpty(document.getElementById('chart-cost-trends-wrap'),
+        'No cost data available for the selected filters.');
+      return;
+    }
+
+    const avgs = years.map(y => parseFloat((yearTotals[y] / yearCounts[y]).toFixed(2)));
+    const { capped, capValue, hasOutliers } = _capOutliers(avgs);
+
+    const ctx = document.getElementById(id);
+    if (!ctx) return;
+
+    _instances[id] = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: years,
+        datasets: [{
+          label: 'Avg Cost (M$)',
+          data: capped,
+          borderColor:     'rgba(247,37,133,1)',
+          backgroundColor: 'rgba(247,37,133,0.1)',
+          borderWidth: 2,
+          pointRadius: years.length > 30 ? 2 : 4,
+          pointHoverRadius: 6,
+          fill: true,
+          tension: 0.3
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label(ctx) {
+                const real = avgs[ctx.dataIndex];
+                const disp = capped[ctx.dataIndex];
+                const suffix = real !== disp ? ` (actual: $${real.toLocaleString()}M)` : '';
+                return ` Avg $${real.toLocaleString()}M${suffix}`;
+              },
+              afterLabel(ctx) {
+                const y = years[ctx.dataIndex];
+                return `${yearCounts[y]} missions with cost data`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: { ticks: { font: _font, maxRotation: 45, autoSkip: true, maxTicksLimit: 20 }, grid: { color: '#e2e8f0' } },
+          y: {
+            ticks: { font: _font, callback: v => `$${v}M` },
+            grid:  { color: '#e2e8f0' },
+            ...(capValue ? { max: capValue * 1.05 } : {})
+          }
+        }
+      }
+    });
+
+    if (hasOutliers && noteEl) {
+      noteEl.textContent = '* Some values are capped for scale; hover for actual averages.';
+    }
+  }
+
   // ── Public API ───────────────────────────────────────────────────────────────
 
   function init(rows) {
@@ -363,6 +454,7 @@ const Charts = (() => {
     _renderSuccessRate(rows);
     _renderMissionStatus(rows);
     _renderLaunchesPerYear(rows);
+    _renderCostTrends(rows);
   }
 
   function destroy() {

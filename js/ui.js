@@ -33,10 +33,29 @@ const UI = (() => {
       } catch (_) { /* data not loaded yet */ }
     }
 
-    _setCard('stat-total',   total.toLocaleString(),  'missions');
-    _setCard('stat-success', successRate,             `${successCount.toLocaleString()} successful`);
-    _setCard('stat-companies', companies.size.toLocaleString(), 'companies');
-    _setCard('stat-top',     topCompany,              'top company by launches');
+    // Most used rocket (from full dataset — not filter-sensitive)
+    let topRocket = '—';
+    try { topRocket = getMostUsedRocket() || '—'; } catch (_) {}
+
+    // Average missions/year across the range present in filtered rows
+    let avgPerYear = '—';
+    if (total > 0) {
+      try {
+        const years = rows.map(r => parseInt((r.Date || '').slice(0, 4))).filter(y => !isNaN(y));
+        if (years.length > 0) {
+          const minY = Math.min(...years);
+          const maxY = Math.max(...years);
+          avgPerYear = getAverageMissionsPerYear(minY, maxY).toLocaleString();
+        }
+      } catch (_) {}
+    }
+
+    _setCard('stat-total',      total.toLocaleString(),        'missions');
+    _setCard('stat-success',    successRate,                   `${successCount.toLocaleString()} successful`);
+    _setCard('stat-companies',  companies.size.toLocaleString(), 'companies');
+    _setCard('stat-top',        topCompany,                    'top company by launches');
+    _setCard('stat-rocket',     topRocket,                     'most used rocket');
+    _setCard('stat-avg',        avgPerYear,                    'avg missions / year');
   }
 
   function _setCard(id, value, sub) {

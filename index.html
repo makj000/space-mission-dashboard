@@ -87,6 +87,16 @@
         <div class="stat-value" style="font-size:16px;word-break:break-word">—</div>
         <div class="stat-sub">by launch count</div>
       </div>
+      <div class="stat-card" id="stat-rocket">
+        <div class="stat-label">Most Used Rocket</div>
+        <div class="stat-value" style="font-size:14px;word-break:break-word">—</div>
+        <div class="stat-sub">most used rocket</div>
+      </div>
+      <div class="stat-card" id="stat-avg">
+        <div class="stat-label">Avg Missions / Year</div>
+        <div class="stat-value">—</div>
+        <div class="stat-sub">avg missions / year</div>
+      </div>
     </div>
 
     <!-- Charts -->
@@ -125,6 +135,15 @@
           <canvas id="chart-launches-year"></canvas>
         </div>
         <div class="outlier-note" id="chart-launches-year-note"></div>
+      </div>
+
+      <div class="chart-card">
+        <h3>Average Mission Cost per Year</h3>
+        <p class="chart-sub">Average cost (M$) of missions with price data per year. Many rows have no cost — tooltip shows data coverage.</p>
+        <div class="chart-wrap" id="chart-cost-trends-wrap">
+          <canvas id="chart-cost-trends"></canvas>
+        </div>
+        <div class="outlier-note" id="chart-cost-trends-note"></div>
       </div>
 
     </div>

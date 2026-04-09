@@ -333,6 +333,12 @@ async function runTests() {
     `${TEST_CASES.length} tests — ✅ ${passed} passed, ❌ ${failed} failed`;
   summaryEl.className = failed === 0 ? 'summary-pass' : 'summary-fail';
 
+  const tsEl = document.getElementById('run-timestamp');
+  if (tsEl) {
+    tsEl.textContent = `Last run: ${new Date().toLocaleString()}`;
+    tsEl.style.display = 'block';
+  }
+
   // Take screenshots for each failing test
   if (failedIds.length > 0) {
     for (const id of failedIds) {
