@@ -56,6 +56,31 @@ const UI = (() => {
     _setCard('stat-top',        topCompany,                    'top company by launches');
     _setCard('stat-rocket',     topRocket,                     'most used rocket');
     _setCard('stat-avg',        avgPerYear,                    'avg missions / year');
+
+    // Wire cross-chart highlight on stat cards
+    const rawTopCompany = topCompany !== '—' ? topCompany.replace(/\s*\(\d+\)$/, '') : null;
+    _wireCardHighlight('stat-top',    rawTopCompany);
+    _wireCardHighlight('stat-rocket', null); // no rocket-level charts yet
+  }
+
+  function _wireCardHighlight(cardId, entity) {
+    const el = document.getElementById(cardId);
+    if (!el) return;
+
+    // Remove previously wired listeners
+    if (el._hlEnter) el.removeEventListener('mouseenter', el._hlEnter);
+    if (el._hlLeave) el.removeEventListener('mouseleave', el._hlLeave);
+    el._hlEnter = null;
+    el._hlLeave = null;
+    el.style.cursor = '';
+
+    if (!entity || typeof Charts === 'undefined') return;
+
+    el._hlEnter = () => Charts.highlight(entity);
+    el._hlLeave = () => Charts.clearHighlight();
+    el.addEventListener('mouseenter', el._hlEnter);
+    el.addEventListener('mouseleave', el._hlLeave);
+    el.style.cursor = 'crosshair';
   }
 
   function _setCard(id, value, sub) {

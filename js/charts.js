@@ -17,7 +17,18 @@
 const Charts = (() => {
   'use strict';
 
-  const _instances = {};   // keyed by canvas id
+  const _instances = {};        // keyed by canvas id
+  const _originalBgColors = {}; // saved bg colors per chart before highlight
+  let _highlightedLabel = null; // currently highlighted entity label
+  let _hlBusy = false;          // re-entrancy guard for highlight updates
+
+  // Charts that show company-level data and participate in cross-highlight
+  const _COMPANY_CHARTS = ['chart-top-companies', 'chart-success-rate'];
+
+  // Charts that show year-level data and participate in year cross-highlight
+  const _YEAR_CHARTS = ['chart-launches-year', 'chart-cost-trends'];
+  let _highlightedYear = null;
+  let _yearHlBusy = false;
 
   // ── Outlier capping ──────────────────────────────────────────────────────────
 
@@ -49,6 +60,117 @@ const Charts = (() => {
       _instances[id].destroy();
       delete _instances[id];
     }
+    delete _originalBgColors[id];
+  }
+
+  // ── Cross-chart highlight ────────────────────────────────────────────────────
+
+  function _dimColor(rgba) {
+    return rgba.replace(/rgba?\(([^,]+),([^,]+),([^,]+)(?:,[^)]+)?\)/,
+      (_, r, g, b) => `rgba(${r},${g},${b},0.12)`);
+  }
+
+  function _fullColor(rgba) {
+    return rgba.replace(/rgba?\(([^,]+),([^,]+),([^,]+)(?:,[^)]+)?\)/,
+      (_, r, g, b) => `rgba(${r},${g},${b},1)`);
+  }
+
+  function _applyHighlightToChart(chartId, label) {
+    const chart = _instances[chartId];
+    if (!chart) return;
+    const labels  = chart.data.labels;
+    const dataset = chart.data.datasets[0];
+
+    if (!_originalBgColors[chartId]) {
+      const orig = dataset.backgroundColor;
+      _originalBgColors[chartId] = Array.isArray(orig)
+        ? [...orig]
+        : Array(labels.length).fill(orig);
+    }
+
+    const idx = labels.indexOf(label);
+    dataset.backgroundColor = _originalBgColors[chartId].map((c, i) =>
+      i === idx ? _fullColor(c) : _dimColor(c)
+    );
+
+    if (idx !== -1) {
+      chart.setActiveElements([{ datasetIndex: 0, index: idx }]);
+      chart.tooltip.setActiveElements([{ datasetIndex: 0, index: idx }], { x: 0, y: 0 });
+    } else {
+      chart.setActiveElements([]);
+      chart.tooltip.setActiveElements([], { x: 0, y: 0 });
+    }
+    chart.update('none');
+  }
+
+  function _removeHighlightFromChart(chartId) {
+    const chart = _instances[chartId];
+    if (!chart || !_originalBgColors[chartId]) return;
+    chart.data.datasets[0].backgroundColor = _originalBgColors[chartId];
+    delete _originalBgColors[chartId];
+    chart.setActiveElements([]);
+    chart.tooltip.setActiveElements([], { x: 0, y: 0 });
+    chart.update('none');
+  }
+
+  // Public: highlight an entity (company name) in all applicable charts
+  function highlight(entity) {
+    if (!entity || _hlBusy) return;
+    _hlBusy = true;
+    _highlightedLabel = entity;
+    _COMPANY_CHARTS.forEach(id => _applyHighlightToChart(id, entity));
+    _hlBusy = false;
+  }
+
+  // Public: clear all active highlights
+  function clearHighlight() {
+    if (_hlBusy) return;
+    _hlBusy = true;
+    _highlightedLabel = null;
+    _COMPANY_CHARTS.forEach(id => _removeHighlightFromChart(id));
+    _hlBusy = false;
+  }
+
+  // ── Year cross-highlight (line charts — tooltip sync) ────────────────────────
+
+  function _applyYearHighlightToChart(chartId, yearLabel) {
+    const chart = _instances[chartId];
+    if (!chart) return;
+    const idx = chart.data.labels.indexOf(yearLabel);
+    if (idx === -1) {
+      chart.setActiveElements([]);
+      chart.tooltip.setActiveElements([], { x: 0, y: 0 });
+    } else {
+      chart.setActiveElements([{ datasetIndex: 0, index: idx }]);
+      chart.tooltip.setActiveElements([{ datasetIndex: 0, index: idx }], { x: 0, y: 0 });
+    }
+    chart.update('none');
+  }
+
+  function _removeYearHighlightFromChart(chartId) {
+    const chart = _instances[chartId];
+    if (!chart) return;
+    chart.setActiveElements([]);
+    chart.tooltip.setActiveElements([], { x: 0, y: 0 });
+    chart.update('none');
+  }
+
+  // Public: highlight a year in both year charts
+  function highlightYear(yearLabel) {
+    if (!yearLabel || _yearHlBusy) return;
+    _yearHlBusy = true;
+    _highlightedYear = yearLabel;
+    _YEAR_CHARTS.forEach(id => _applyYearHighlightToChart(id, yearLabel));
+    _yearHlBusy = false;
+  }
+
+  // Public: clear year highlights
+  function clearYearHighlight() {
+    if (_yearHlBusy) return;
+    _yearHlBusy = true;
+    _highlightedYear = null;
+    _YEAR_CHARTS.forEach(id => _removeYearHighlightFromChart(id));
+    _yearHlBusy = false;
   }
 
   const _font = { family: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" };
@@ -102,6 +224,14 @@ const Charts = (() => {
         indexAxis: 'y',
         responsive: true,
         maintainAspectRatio: false,
+        onHover(event, activeElements, chart) {
+          if (activeElements.length === 0) {
+            if (_highlightedLabel !== null) clearHighlight();
+            return;
+          }
+          const label = chart.data.labels[activeElements[0].index];
+          if (label !== _highlightedLabel) highlight(label);
+        },
         plugins: {
           legend: { display: false },
           tooltip: {
@@ -195,6 +325,14 @@ const Charts = (() => {
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        onHover(event, activeElements, chart) {
+          if (activeElements.length === 0) {
+            if (_highlightedLabel !== null) clearHighlight();
+            return;
+          }
+          const label = chart.data.labels[activeElements[0].index];
+          if (label !== _highlightedLabel) highlight(label);
+        },
         plugins: {
           legend: { display: false },
           tooltip: {
@@ -327,6 +465,14 @@ const Charts = (() => {
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        onHover(event, activeElements, chart) {
+          if (activeElements.length === 0) {
+            if (_highlightedYear !== null) clearYearHighlight();
+            return;
+          }
+          const label = chart.data.labels[activeElements[0].index];
+          if (label !== _highlightedYear) highlightYear(label);
+        },
         plugins: {
           legend: { display: false },
           tooltip: {
@@ -414,6 +560,14 @@ const Charts = (() => {
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        onHover(event, activeElements, chart) {
+          if (activeElements.length === 0) {
+            if (_highlightedYear !== null) clearYearHighlight();
+            return;
+          }
+          const label = chart.data.labels[activeElements[0].index];
+          if (label !== _highlightedYear) highlightYear(label);
+        },
         plugins: {
           legend: { display: false },
           tooltip: {
@@ -547,5 +701,5 @@ const Charts = (() => {
     Object.keys(_instances).forEach(_destroy);
   }
 
-  return { init, destroy };
+  return { init, destroy, highlight, clearHighlight, highlightYear, clearYearHighlight };
 })();
