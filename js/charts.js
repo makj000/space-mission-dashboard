@@ -226,11 +226,143 @@ const Charts = (() => {
     });
   }
 
+  // ── Chart 3: Mission Status Breakdown (doughnut) ─────────────────────────────
+
+  function _renderMissionStatus(rows) {
+    const id = 'chart-mission-status';
+    _destroy(id);
+
+    if (!rows || rows.length === 0) {
+      UI.showEmpty(document.getElementById('chart-mission-status-wrap'));
+      return;
+    }
+
+    // Compute counts from filtered rows via Function 5 logic on filtered subset
+    const counts = { 'Success': 0, 'Failure': 0, 'Partial Failure': 0, 'Prelaunch Failure': 0 };
+    for (const r of rows) {
+      const s = (r.MissionStatus || '').trim();
+      if (Object.prototype.hasOwnProperty.call(counts, s)) counts[s]++;
+    }
+
+    const labels = Object.keys(counts);
+    const data   = Object.values(counts);
+    const colors = ['rgba(6,214,160,.8)', 'rgba(239,35,60,.8)', 'rgba(255,209,102,.8)', 'rgba(114,9,183,.8)'];
+    const borders= ['rgb(6,214,160)',     'rgb(239,35,60)',     'rgb(255,209,102)',     'rgb(114,9,183)'];
+
+    const ctx = document.getElementById(id);
+    if (!ctx) return;
+
+    _instances[id] = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels,
+        datasets: [{ data, backgroundColor: colors, borderColor: borders, borderWidth: 2 }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom', labels: { font: _font, padding: 16 } },
+          tooltip: {
+            callbacks: {
+              label(ctx) {
+                const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                const pct   = total > 0 ? (ctx.parsed / total * 100).toFixed(1) : 0;
+                return ` ${ctx.label}: ${ctx.parsed.toLocaleString()} (${pct}%)`;
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // ── Chart 4: Launches per Year (line) ────────────────────────────────────────
+
+  function _renderLaunchesPerYear(rows) {
+    const id = 'chart-launches-year';
+    _destroy(id);
+
+    const noteEl = document.getElementById('chart-launches-year-note');
+    if (noteEl) noteEl.textContent = '';
+
+    if (!rows || rows.length === 0) {
+      UI.showEmpty(document.getElementById('chart-launches-year-wrap'));
+      return;
+    }
+
+    // Count missions per year from filtered rows
+    const yearCounts = {};
+    for (const r of rows) {
+      const d = (r.Date || '').trim();
+      if (!d) continue;
+      const y = d.slice(0, 4);
+      if (/^\d{4}$/.test(y)) yearCounts[y] = (yearCounts[y] || 0) + 1;
+    }
+
+    const years  = Object.keys(yearCounts).sort();
+    const counts = years.map(y => yearCounts[y]);
+
+    const { capped, capValue, hasOutliers } = _capOutliers(counts);
+
+    const ctx = document.getElementById(id);
+    if (!ctx) return;
+
+    _instances[id] = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: years,
+        datasets: [{
+          label: 'Launches',
+          data: capped,
+          borderColor:     'rgba(67,97,238,1)',
+          backgroundColor: 'rgba(67,97,238,0.12)',
+          borderWidth: 2,
+          pointRadius: years.length > 40 ? 2 : 4,
+          pointHoverRadius: 6,
+          fill: true,
+          tension: 0.3
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label(ctx) {
+                const real = counts[ctx.dataIndex];
+                const disp = capped[ctx.dataIndex];
+                const suffix = real !== disp ? ` (actual: ${real})` : '';
+                return ` ${real} launches${suffix}`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: { ticks: { font: _font, maxRotation: 45, autoSkip: true, maxTicksLimit: 20 }, grid: { color: '#e2e8f0' } },
+          y: {
+            ticks: { font: _font },
+            grid:  { color: '#e2e8f0' },
+            ...(capValue ? { max: capValue * 1.05 } : {})
+          }
+        }
+      }
+    });
+
+    if (hasOutliers && noteEl) {
+      noteEl.textContent = '* Some values are capped for scale; hover for actual counts.';
+    }
+  }
+
   // ── Public API ───────────────────────────────────────────────────────────────
 
   function init(rows) {
     _renderTopCompanies(rows);
     _renderSuccessRate(rows);
+    _renderMissionStatus(rows);
+    _renderLaunchesPerYear(rows);
   }
 
   function destroy() {
