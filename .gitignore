@@ -3,4 +3,5 @@
 .claude/settings.local.json
 .claude/CLAUDE.local.md
 
+data/space_missions_expanded_*.csv
 test_screenshots/

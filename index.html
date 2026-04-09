@@ -18,6 +18,7 @@
   <div id="app-banner"></div>
 
   <!-- ── Nav ────────────────────────────────────────────────────────────────── -->
+
   <nav>
     <div class="logo">
       <svg width="36" height="24" viewBox="0 0 36 24" aria-hidden="true">
@@ -28,9 +29,12 @@
     </div>
     <h1>Space Missions Dashboard</h1>
     <button class="btn btn-ghost" id="btn-load">📂 Load CSV</button>
-    <button class="btn btn-ghost" id="btn-reload" disabled>🔄 Reload</button>
+    <button class="btn btn-ghost" id="btn-reload" disabled title="Reload CSV">↺</button>
     <input type="file" id="csv-input" accept=".csv" style="display:none" />
-    <span id="file-status" class="status-idle">No file loaded</span>
+    <div id="file-info">
+      <span id="file-status" class="status-idle">No file loaded</span>
+      <div id="load-progress"></div>
+    </div>
     <a href="tests.html">🧪 Tests</a>
     <span id="nav-version" style="font-size:11px;color:#4a5568;background:#2d3748;padding:2px 8px;border-radius:4px;font-family:monospace"></span>
   </nav>
@@ -192,11 +196,12 @@
   <script>
     'use strict';
 
-    const loadBtn   = document.getElementById('btn-load');
-    const reloadBtn = document.getElementById('btn-reload');
-    const csvInput  = document.getElementById('csv-input');
-    const statusEl  = document.getElementById('file-status');
-    const filterBar = document.getElementById('filter-bar');
+    const loadBtn    = document.getElementById('btn-load');
+    const reloadBtn  = document.getElementById('btn-reload');
+    const csvInput   = document.getElementById('csv-input');
+    const statusEl   = document.getElementById('file-status');
+    const filterBar  = document.getElementById('filter-bar');
+    const progressEl = document.getElementById('load-progress');
 
     // Display version in nav
     const verEl = document.getElementById('nav-version');
@@ -207,57 +212,145 @@
       statusEl.className   = cls;
     }
 
-    async function onFileLoaded(info) {
-      const sizeTxt = info.sizeMB > 0 ? ` · ${info.sizeMB.toFixed(1)} MB` : '';
-      const tooLarge = info.sizeMB > 10;
+    let _loadedTimer = null;
+    let _isLoading   = false;
 
-      if (tooLarge) {
-        setStatus(`⚠ File too large (${info.sizeMB.toFixed(1)} MB) — max 10 MB`, 'status-error');
-        UI.showBanner(`File exceeds the 10 MB limit (${info.sizeMB.toFixed(1)} MB). Please use a smaller file.`, 'error');
-        DataStore.clear();
-        return;
+    function _setLoadBtn(state) {
+      clearTimeout(_loadedTimer);
+      loadBtn.classList.remove('btn-loading', 'btn-loaded');
+      if (state === 'loading') {
+        _isLoading = true;
+        loadBtn.disabled = false;          // stays clickable — acts as cancel
+        loadBtn.textContent = '✕ Cancel';
+        loadBtn.classList.add('btn-loading');
+        if (progressEl) { progressEl.style.setProperty('--load-pct', '0%'); progressEl.style.display = 'block'; }
+      } else if (state === 'loaded') {
+        _isLoading = false;
+        loadBtn.disabled = false;
+        loadBtn.textContent = '✅ Loaded';
+        loadBtn.classList.add('btn-loaded');
+        if (progressEl) progressEl.style.display = 'none';
+        _loadedTimer = setTimeout(() => {
+          loadBtn.classList.remove('btn-loaded');
+          loadBtn.textContent = '📂 Load CSV';
+        }, 2500);
+      } else {
+        _isLoading = false;
+        loadBtn.disabled = false;
+        loadBtn.textContent = '📂 Load CSV';
+        if (progressEl) progressEl.style.display = 'none';
       }
-
-      setStatus(`✓ ${info.fileName}${sizeTxt} · ${info.rows.length.toLocaleString()} rows`, 'status-ok');
-      UI.hideBanner();
-
-      reloadBtn.disabled       = false;
-      filterBar.style.display  = 'flex';
-
-      UI.showDashboard();
-      Filters.init();
-      Filters.apply();
     }
 
-    loadBtn.addEventListener('click', () => csvInput.click());
+    /**
+     * Stream-load via DataStore, showing the dashboard progressively.
+     * loadFn receives the onChunk callback and must return the load Promise.
+     *
+     * Rendering strategy:
+     *   - First chunk with data → show dashboard immediately, Filters.apply()
+     *   - Subsequent chunks    → throttled Filters.apply() (every RENDER_INTERVAL ms)
+     *   - Completion           → Filters.init() (sets full date range) + Filters.apply()
+     *
+     * Filters.init() is intentionally skipped mid-stream so filter selections and
+     * the date range are not reset while the user watches data load in.
+     */
+    async function _streamLoad(loadFn) {
+      if (progressEl) progressEl.style.display = 'block';
+
+      let dashboardShown = false;
+      let renderTimer    = null;
+      let lastRenderAt   = 0;
+      const RENDER_INTERVAL = 2000; // ms between mid-stream re-renders
+
+      function scheduleRender() {
+        if (renderTimer) clearTimeout(renderTimer);
+        // First call: lastRenderAt=0 → delay=0 (immediate). Subsequent: up to RENDER_INTERVAL.
+        const delay = Math.max(0, RENDER_INTERVAL - (Date.now() - lastRenderAt));
+        renderTimer = setTimeout(() => {
+          renderTimer   = null;
+          lastRenderAt  = Date.now();
+          if (!dashboardShown) {
+            dashboardShown = true;
+            filterBar.style.display = 'flex';
+            reloadBtn.disabled      = false;
+            UI.showDashboard();
+          }
+          Filters.apply();
+        }, delay);
+      }
+
+      function onChunk({ isDone, rowCount, bytesLoaded, bytesTotal }) {
+        if (isDone) return; // handled after promise resolves
+        const pct = bytesTotal > 0 ? Math.round(bytesLoaded / bytesTotal * 100) : 0;
+        setStatus(`Parsing… ${rowCount.toLocaleString()} rows loaded`, 'status-idle');
+        if (progressEl) progressEl.style.setProperty('--load-pct', pct + '%');
+        if (rowCount > 0) scheduleRender();
+      }
+
+      _setLoadBtn('loading'); // shows progressEl, resets bar to 0%
+
+      try {
+        const info = await loadFn(onChunk);
+
+        // Cancel any pending partial render; do the definitive final render
+        if (renderTimer) { clearTimeout(renderTimer); renderTimer = null; }
+
+        const sizeTxt = info.sizeMB > 0 ? ` · ${info.sizeMB.toFixed(1)} MB` : '';
+        setStatus(`✓ ${info.fileName}${sizeTxt} · ${info.rows.length.toLocaleString()} rows`, 'status-ok');
+        UI.hideBanner();
+
+        if (!dashboardShown) {
+          filterBar.style.display = 'flex';
+          reloadBtn.disabled      = false;
+          UI.showDashboard();
+        }
+        Filters.init();   // sets full date range now that all rows are loaded
+        Filters.apply();
+        _setLoadBtn('loaded');
+
+      } catch (err) {
+        if (renderTimer) { clearTimeout(renderTimer); renderTimer = null; }
+        if (err.message === 'LOAD_CANCELLED') {
+          _setLoadBtn('idle');
+          setStatus('Load cancelled', 'status-idle');
+          if (!dashboardShown) UI.showLanding();
+          DataStore.clear();
+          csvInput.value = ''; // reset so the same file can be re-selected
+          return;
+        }
+        _setLoadBtn('idle');
+        setStatus(`Error: ${err.message}`, 'status-error');
+        UI.showBanner(err.message, 'error');
+        if (!dashboardShown) UI.showLanding();
+      }
+    }
+
+    loadBtn.addEventListener('click', () => {
+      if (_isLoading) { DataStore.cancelLoad(); } else { csvInput.click(); }
+    });
 
     csvInput.addEventListener('change', async e => {
       const file = e.target.files[0];
       if (!file) return;
-      setStatus('Parsing…', 'status-idle');
-      try {
-        DataStore.clear();
-        Charts.destroy();
-        const info = await DataStore.loadFromFile(file);
-        await onFileLoaded(info);
-      } catch (err) {
-        setStatus(`Error: ${err.message}`, 'status-error');
-        UI.showBanner(err.message, 'error');
-        UI.showLanding();
+
+      const sizeMB = file.size / (1024 * 1024);
+      if (sizeMB > 100) {
+        setStatus(`⚠ File too large (${sizeMB.toFixed(1)} MB) — max 100 MB`, 'status-error');
+        UI.showBanner(`File exceeds the 100 MB limit (${sizeMB.toFixed(1)} MB). Please use a smaller file.`, 'error');
+        return;
       }
+
+      setStatus('Parsing…', 'status-idle');
+      Charts.destroy();
+      DataStore.clear();
+      await _streamLoad(cb => DataStore.loadFromFileStreaming(file, cb));
     });
 
     reloadBtn.addEventListener('click', async () => {
       setStatus('Reloading…', 'status-idle');
-      try {
-        Charts.destroy();
-        DataStore.clear();
-        const info = await DataStore.reload();
-        await onFileLoaded(info);
-      } catch (err) {
-        setStatus(`Error: ${err.message}`, 'status-error');
-        UI.showBanner(err.message, 'error');
-      }
+      Charts.destroy();
+      // Note: do NOT call DataStore.clear() here — reload() needs _lastFile intact
+      await _streamLoad(cb => DataStore.reload(cb));
     });
   </script>
 

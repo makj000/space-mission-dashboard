@@ -11,10 +11,12 @@ const DataStore = (() => {
   ];
   const MAX_FILE_SIZE_MB = 50;
 
-  let _rows     = [];
-  let _loaded   = false;
-  let _fileName = null;
-  let _lastFile = null;
+  let _rows        = [];
+  let _loaded      = false;
+  let _fileName    = null;
+  let _lastFile    = null;
+  let _activeParser = null;  // PapaParse parser ref during streaming
+  let _cancelled   = false;  // set by cancelLoad(), checked in complete()
 
   // ── private helpers ──────────────────────────────────────────────────────
 
@@ -99,16 +101,95 @@ const DataStore = (() => {
   }
 
   /**
+   * Load and parse a File object in 1 MB chunks, calling onChunk after each.
+   * Renders can be triggered progressively while the file is still being read.
+   * @param {File}     file
+   * @param {Function} [onChunk]  called as onChunk({ isDone, rowCount, sizeMB })
+   * @returns {Promise<{rows, fileName, sizeMB}>}
+   */
+  function loadFromFileStreaming(file, onChunk) {
+    return new Promise((resolve, reject) => {
+      if (!file) { reject(new Error('No file provided')); return; }
+
+      const sizeMB = file.size / (1024 * 1024);
+      _rows      = [];
+      _loaded    = false;
+      _lastFile  = file;
+      _cancelled = false;
+
+      let headerValidated = false;
+      let bytesLoaded = 0;
+      const CHUNK_SIZE  = 1024 * 1024; // 1 MB
+      const pauseEvery  = file.size / 10; // pause at every 10% of file size
+      let nextPauseAt   = pauseEvery;
+
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        chunkSize: CHUNK_SIZE,
+        chunk(results, parser) {
+          _activeParser = parser;
+          if (!headerValidated) {
+            try {
+              _validateColumns(results.meta.fields || []);
+              headerValidated = true;
+            } catch (e) {
+              parser.abort();
+              reject(e);
+              return;
+            }
+          }
+          if (results.errors.length > 0) console.warn('CSV chunk warnings:', results.errors);
+          Array.prototype.push.apply(_rows, results.data);
+          bytesLoaded = Math.min(bytesLoaded + CHUNK_SIZE, file.size);
+          _loaded   = _rows.length > 0;
+          _fileName = file.name;
+          if (onChunk) onChunk({
+            isDone: false, rowCount: _rows.length, sizeMB,
+            bytesLoaded, bytesTotal: file.size
+          });
+          // Pause 500 ms at every 10% boundary to give the browser a repaint.
+          if (bytesLoaded >= nextPauseAt) {
+            nextPauseAt += pauseEvery;
+            parser.pause();
+            setTimeout(() => parser.resume(), 100);
+          }
+        },
+        complete() {
+          _activeParser = null;
+          if (_cancelled) {
+            _cancelled = false;
+            _rows = []; _loaded = false; _fileName = null;
+            reject(new Error('LOAD_CANCELLED'));
+            return;
+          }
+          _loaded   = _rows.length > 0;
+          _fileName = file.name;
+          if (onChunk) onChunk({
+            isDone: true, rowCount: _rows.length, sizeMB,
+            bytesLoaded: file.size, bytesTotal: file.size
+          });
+          resolve({ rows: _rows, fileName: file.name, sizeMB });
+        },
+        error(err) {
+          _activeParser = null;
+          reject(new Error(`Could not parse file: ${err.message}`));
+        }
+      });
+    });
+  }
+
+  /**
    * Re-parse the last loaded File without prompting the user again.
+   * @param {Function} [onChunk]  optional streaming callback (same as loadFromFileStreaming)
    * @returns {Promise}
    */
-  function reload() {
+  function reload(onChunk) {
     if (!_lastFile) {
       return Promise.reject(new Error('No file has been loaded yet. Please load a file first.'));
     }
-    _rows   = [];
-    _loaded = false;
-    return loadFromFile(_lastFile);
+    // _rows / _loaded reset inside loadFromFileStreaming
+    return loadFromFileStreaming(_lastFile, onChunk);
   }
 
   /** @returns {Object[]} array of parsed row objects */
@@ -120,6 +201,15 @@ const DataStore = (() => {
   /** @returns {string|null} */
   function getFileName() { return _fileName; }
 
+  /** Abort an in-progress streaming load. The load promise will reject with LOAD_CANCELLED. */
+  function cancelLoad() {
+    if (_activeParser) {
+      _cancelled = true;
+      _activeParser.abort();
+      _activeParser = null;
+    }
+  }
+
   /** Reset all state (used before a fresh load). */
   function clear() {
     _rows     = [];
@@ -128,5 +218,5 @@ const DataStore = (() => {
     _lastFile = null;
   }
 
-  return { loadFromFile, loadFromString, reload, getData, isLoaded, getFileName, clear };
+  return { loadFromFile, loadFromFileStreaming, loadFromString, reload, cancelLoad, getData, isLoaded, getFileName, clear };
 })();
