@@ -447,6 +447,91 @@ const Charts = (() => {
     }
   }
 
+  // ── Chart 6: Launches by Location (horizontal bar) ───────────────────────────
+  // Rationale: location names are long; horizontal bars avoid rotation and rank
+  // sites naturally top-to-bottom. Top 10 keeps the chart readable.
+
+  function _renderLaunchesByLocation(rows) {
+    const id = 'chart-launches-location';
+    _destroy(id);
+
+    const noteEl = document.getElementById('chart-launches-location-note');
+    if (noteEl) noteEl.textContent = '';
+
+    if (!rows || rows.length === 0) {
+      UI.showEmpty(document.getElementById('chart-launches-location-wrap'));
+      return;
+    }
+
+    const counts = {};
+    for (const r of rows) {
+      const loc = (r.Location || '').trim();
+      if (loc) counts[loc] = (counts[loc] || 0) + 1;
+    }
+
+    const sorted = Object.entries(counts)
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 10);
+
+    const labels = sorted.map(([loc]) => {
+      // Shorten to first two comma-separated parts for readability
+      const parts = loc.split(',');
+      return parts.length > 2 ? parts.slice(0, 2).join(',').trim() : loc;
+    });
+    const fullLabels = sorted.map(([loc]) => loc);
+    const raw = sorted.map(([, n]) => n);
+    const { capped, capValue, hasOutliers } = _capOutliers(raw);
+
+    const ctx = document.getElementById(id);
+    if (!ctx) return;
+
+    _instances[id] = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Launches',
+          data: capped,
+          backgroundColor: 'rgba(114,9,183,0.7)',
+          borderColor:     'rgba(114,9,183,1)',
+          borderWidth: 1,
+          borderRadius: 3
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title: ctx => fullLabels[ctx[0].dataIndex],
+              label(ctx) {
+                const real = raw[ctx.dataIndex];
+                const disp = capped[ctx.dataIndex];
+                const suffix = real !== disp ? ` (actual: ${real.toLocaleString()})` : '';
+                return ` ${real.toLocaleString()} launches${suffix}`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { font: _font },
+            grid:  { color: '#e2e8f0' },
+            ...(capValue ? { max: capValue * 1.05 } : {})
+          },
+          y: { ticks: { font: _font }, grid: { display: false } }
+        }
+      }
+    });
+
+    if (hasOutliers && noteEl) {
+      noteEl.textContent = '* Some values are capped for scale; hover for actual counts.';
+    }
+  }
+
   // ── Public API ───────────────────────────────────────────────────────────────
 
   function init(rows) {
@@ -455,6 +540,7 @@ const Charts = (() => {
     _renderMissionStatus(rows);
     _renderLaunchesPerYear(rows);
     _renderCostTrends(rows);
+    _renderLaunchesByLocation(rows);
   }
 
   function destroy() {

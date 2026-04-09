@@ -32,6 +32,7 @@
     <input type="file" id="csv-input" accept=".csv" style="display:none" />
     <span id="file-status" class="status-idle">No file loaded</span>
     <a href="tests.html">🧪 Tests</a>
+    <span id="nav-version" style="font-size:11px;color:#4a5568;background:#2d3748;padding:2px 8px;border-radius:4px;font-family:monospace"></span>
   </nav>
 
   <!-- ── Filter bar ─────────────────────────────────────────────────────────── -->
@@ -146,6 +147,15 @@
         <div class="outlier-note" id="chart-cost-trends-note"></div>
       </div>
 
+      <div class="chart-card">
+        <h3>Top 10 Launch Locations</h3>
+        <p class="chart-sub">Busiest launch sites by mission count. Horizontal bars fit long site names without rotation; tooltip shows full location.</p>
+        <div class="chart-wrap" id="chart-launches-location-wrap">
+          <canvas id="chart-launches-location"></canvas>
+        </div>
+        <div class="outlier-note" id="chart-launches-location-note"></div>
+      </div>
+
     </div>
 
     <!-- Data table -->
@@ -169,6 +179,7 @@
           onerror="document.getElementById('lib-error').style.display='block'"></script>
 
   <!-- ── App modules ────────────────────────────────────────────────────────── -->
+  <script src="js/version.js"></script>
   <script src="js/data.js"></script>
   <script src="js/functions.js"></script>
   <script src="js/ui.js"></script>
@@ -185,6 +196,10 @@
     const csvInput  = document.getElementById('csv-input');
     const statusEl  = document.getElementById('file-status');
     const filterBar = document.getElementById('filter-bar');
+
+    // Display version in nav
+    const verEl = document.getElementById('nav-version');
+    if (verEl && typeof APP_VERSION !== 'undefined') verEl.textContent = `v${APP_VERSION}`;
 
     function setStatus(text, cls) {
       statusEl.textContent = text;
