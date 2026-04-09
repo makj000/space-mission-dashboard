@@ -1,0 +1,241 @@
+/**
+ * charts.js — Chart creation using Chart.js.
+ *
+ * Charts available now (Functions 1–4):
+ *   1. Top Companies by Mission Count  (horizontal bar)  — Function 4
+ *   2. Success Rate by Company         (vertical bar)    — Functions 2 + 4
+ *
+ * Outlier capping: bars >3× IQR above Q3 are visually capped; the real
+ * value is shown in the tooltip and an asterisk note is shown below the chart.
+ *
+ * Rationale:
+ *   Horizontal bar — long company names fit naturally on the Y axis without
+ *   rotation, and ranked data reads top-to-bottom intuitively.
+ *   Vertical bar for success rates — a 0–100% scale is naturally vertical,
+ *   matching common mental models (higher = better).
+ */
+const Charts = (() => {
+  'use strict';
+
+  const _instances = {};   // keyed by canvas id
+
+  // ── Outlier capping ──────────────────────────────────────────────────────────
+
+  /**
+   * Given an array of numbers, returns { capped, capValue, hasOutliers }.
+   * Values above Q3 + 3×IQR are capped at capValue.
+   */
+  function _capOutliers(values) {
+    if (values.length < 4) return { capped: [...values], capValue: null, hasOutliers: false };
+
+    const sorted = [...values].sort((a, b) => a - b);
+    const q1 = sorted[Math.floor(sorted.length * 0.25)];
+    const q3 = sorted[Math.floor(sorted.length * 0.75)];
+    const iqr = q3 - q1;
+    const fence = q3 + 3 * iqr;
+
+    const hasOutliers = values.some(v => v > fence);
+    if (!hasOutliers) return { capped: [...values], capValue: null, hasOutliers: false };
+
+    const capValue = fence * 1.1;   // cap display at 10% above fence
+    const capped   = values.map(v => (v > fence ? capValue : v));
+    return { capped, capValue, hasOutliers };
+  }
+
+  // ── Shared chart defaults ────────────────────────────────────────────────────
+
+  function _destroy(id) {
+    if (_instances[id]) {
+      _instances[id].destroy();
+      delete _instances[id];
+    }
+  }
+
+  const _font = { family: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" };
+
+  // ── Chart 1: Top Companies by Mission Count (horizontal bar) ─────────────────
+
+  function _renderTopCompanies(rows) {
+    const id = 'chart-top-companies';
+    _destroy(id);
+
+    const noteEl = document.getElementById('chart-top-companies-note');
+    if (noteEl) noteEl.textContent = '';
+
+    if (!rows || rows.length === 0) {
+      UI.showEmpty(document.getElementById('chart-top-companies-wrap'));
+      return;
+    }
+
+    // Build counts from filtered rows
+    const counts = {};
+    for (const r of rows) {
+      const c = (r.Company || '').trim();
+      if (c) counts[c] = (counts[c] || 0) + 1;
+    }
+
+    const sorted = Object.entries(counts)
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 15);
+
+    const labels = sorted.map(([name]) => name);
+    const raw    = sorted.map(([, n]) => n);
+    const { capped, capValue, hasOutliers } = _capOutliers(raw);
+
+    const ctx = document.getElementById(id);
+    if (!ctx) return;
+
+    _instances[id] = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Missions',
+          data: capped,
+          backgroundColor: 'rgba(67,97,238,0.75)',
+          borderColor:     'rgba(67,97,238,1)',
+          borderWidth: 1,
+          borderRadius: 3
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label(ctx) {
+                const real = raw[ctx.dataIndex];
+                const disp = capped[ctx.dataIndex];
+                const suffix = real !== disp ? ` (actual: ${real.toLocaleString()})` : '';
+                return ` ${real.toLocaleString()} missions${suffix}`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { font: _font },
+            grid:  { color: '#e2e8f0' },
+            ...(capValue ? { max: capValue * 1.05 } : {})
+          },
+          y: { ticks: { font: _font }, grid: { display: false } }
+        }
+      }
+    });
+
+    if (hasOutliers && noteEl) {
+      noteEl.textContent = '* Some values are capped for scale; hover for actual counts.';
+    }
+  }
+
+  // ── Chart 2: Success Rate by Company (vertical bar) ──────────────────────────
+
+  function _renderSuccessRate(rows) {
+    const id = 'chart-success-rate';
+    _destroy(id);
+
+    const noteEl = document.getElementById('chart-success-rate-note');
+    if (noteEl) noteEl.textContent = '';
+
+    if (!rows || rows.length === 0) {
+      UI.showEmpty(document.getElementById('chart-success-rate-wrap'));
+      return;
+    }
+
+    // Get top 15 companies by count within filtered rows
+    const counts = {};
+    for (const r of rows) {
+      const c = (r.Company || '').trim();
+      if (c) counts[c] = (counts[c] || 0) + 1;
+    }
+    const topCompanies = Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 15)
+      .map(([name]) => name);
+
+    // Compute success rate per company from filtered rows
+    const rates = topCompanies.map(company => {
+      const missions  = rows.filter(r => r.Company === company);
+      const successes = missions.filter(r => r.MissionStatus === 'Success').length;
+      return missions.length > 0
+        ? parseFloat((successes / missions.length * 100).toFixed(2))
+        : 0;
+    });
+
+    const colors = rates.map(r =>
+      r >= 80 ? 'rgba(6,214,160,0.75)' :
+      r >= 50 ? 'rgba(255,209,102,0.75)' :
+                'rgba(239,35,60,0.75)'
+    );
+    const borders = rates.map(r =>
+      r >= 80 ? 'rgb(6,214,160)' :
+      r >= 50 ? 'rgb(255,209,102)' :
+                'rgb(239,35,60)'
+    );
+
+    const ctx = document.getElementById(id);
+    if (!ctx) return;
+
+    _instances[id] = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: topCompanies,
+        datasets: [{
+          label: 'Success Rate (%)',
+          data: rates,
+          backgroundColor: colors,
+          borderColor:     borders,
+          borderWidth: 1,
+          borderRadius: 3
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => ` ${ctx.parsed.y.toFixed(2)}%`
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: {
+              font: _font,
+              maxRotation: 35,
+              minRotation: 25
+            },
+            grid: { display: false }
+          },
+          y: {
+            min: 0,
+            max: 100,
+            ticks: {
+              font: _font,
+              callback: v => v + '%'
+            },
+            grid: { color: '#e2e8f0' }
+          }
+        }
+      }
+    });
+  }
+
+  // ── Public API ───────────────────────────────────────────────────────────────
+
+  function init(rows) {
+    _renderTopCompanies(rows);
+    _renderSuccessRate(rows);
+  }
+
+  function destroy() {
+    Object.keys(_instances).forEach(_destroy);
+  }
+
+  return { init, destroy };
+})();
