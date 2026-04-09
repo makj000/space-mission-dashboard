@@ -64,33 +64,42 @@ const Filters = (() => {
 
   // ── Init ──────────────────────────────────────────────────────────────────────
 
+  let _eventsWired = false;
+
   function init() {
     _populateDropdowns();
 
-    // Set date range defaults from data
-    const rows = DataStore.getData();
+    // Always reset date range to the full range of the newly loaded data
+    const rows  = DataStore.getData();
     const dates = rows.map(r => (r.Date || '').trim()).filter(Boolean).sort();
+    const startEl = document.getElementById('filter-date-start');
+    const endEl   = document.getElementById('filter-date-end');
     if (dates.length > 0) {
-      const startEl = document.getElementById('filter-date-start');
-      const endEl   = document.getElementById('filter-date-end');
-      if (startEl && !startEl.value) startEl.value = dates[0];
-      if (endEl   && !endEl.value)   endEl.value   = dates[dates.length - 1];
+      if (startEl) startEl.value = dates[0];
+      if (endEl)   endEl.value   = dates[dates.length - 1];
     }
 
-    // Wire all filter inputs
-    ['filter-date-start', 'filter-date-end',
-     'filter-company', 'filter-mission-status', 'filter-rocket-status'
-    ].forEach(id => {
-      document.getElementById(id)?.addEventListener('change', apply);
+    // Reset dropdowns to "All" for a clean slate on every new file load
+    ['filter-company', 'filter-mission-status', 'filter-rocket-status'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
     });
 
-    // Table search
-    document.getElementById('table-search')?.addEventListener('input', e => {
-      Table.setSearch(e.target.value);
-    });
+    // Wire events only once — they remain valid across file reloads
+    if (!_eventsWired) {
+      ['filter-date-start', 'filter-date-end',
+       'filter-company', 'filter-mission-status', 'filter-rocket-status'
+      ].forEach(id => {
+        document.getElementById(id)?.addEventListener('change', apply);
+      });
 
-    // Reset button
-    document.getElementById('btn-reset-filters')?.addEventListener('click', reset);
+      document.getElementById('table-search')?.addEventListener('input', e => {
+        Table.setSearch(e.target.value);
+      });
+
+      document.getElementById('btn-reset-filters')?.addEventListener('click', reset);
+      _eventsWired = true;
+    }
   }
 
   // ── Reset ─────────────────────────────────────────────────────────────────────
