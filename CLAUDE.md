@@ -172,7 +172,7 @@ output something like 87.33333
 The page should be responsive to small screen sizes
 
 ## 10. Error Handling and Edge Case Handling
-- Include error handling for edge cases: unexpected column name, corrupted file, too-large file
+- Include error handling for edge cases: unexpected column name, corrupted file, too-large file (over 10MB)
 - empty result: UI should show a user-friendly message eg. "No data match your critiera" instead of just showing a blank table
 - outliers: If very few data points in a visualization are outliers (much larger compared to the rest), don't show the outliers up to scale and distort the whole visualization. Instead, show that they're scaled down so user knows they're not up to scale
 - pagination: for very large dataset, use pagination, but also support showing all in one page with warning

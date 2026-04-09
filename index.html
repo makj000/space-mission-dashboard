@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Space Missions Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f4f6f9;
+      color: #1a1a2e;
+      min-height: 100vh;
+    }
+
+    /* ── Nav ──────────────────────────────────────────────── */
+    nav {
+      background: #1a1a2e;
+      color: #fff;
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      height: 52px;
+    }
+
+    .logo svg { display: block; }
+
+    nav h1 {
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      flex: 1;
+    }
+
+    nav a { color: #a0aec0; text-decoration: none; font-size: 13px; }
+    nav a:hover { color: #fff; }
+
+    /* ── Toolbar ──────────────────────────────────────────── */
+    .toolbar {
+      background: #fff;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      padding: 7px 14px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: opacity .15s;
+    }
+    .btn:hover { opacity: .85; }
+    .btn-primary   { background: #4361ee; color: #fff; }
+    .btn-secondary { background: #e2e8f0; color: #2d3748; }
+    .btn:disabled  { opacity: .4; cursor: not-allowed; }
+
+    #file-status {
+      margin-left: auto;
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 4px;
+    }
+    .status-idle  { background: #edf2f7; color: #4a5568; }
+    .status-ok    { background: #c6f6d5; color: #276749; }
+    .status-error { background: #fed7d7; color: #9b2c2c; }
+    .status-warn  { background: #fefcbf; color: #744210; }
+
+    /* ── Library error banner ─────────────────────────────── */
+    #lib-error {
+      display: none;
+      background: #fff3cd;
+      color: #856404;
+      padding: 12px 20px;
+      font-size: 13px;
+      border-bottom: 1px solid #ffc107;
+    }
+
+    /* ── Main placeholder ─────────────────────────────────── */
+    main {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 20px;
+      gap: 16px;
+      text-align: center;
+    }
+
+    main h2 { font-size: 20px; color: #2d3748; }
+    main p  { font-size: 14px; color: #718096; max-width: 400px; line-height: 1.6; }
+
+    .upload-icon {
+      font-size: 48px;
+      opacity: .4;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Library load error banner -->
+  <div id="lib-error">
+    ⚠️ A required library failed to load. Please check that
+    <code>libs/papaparse.min.js</code> exists in the project folder.
+  </div>
+
+  <!-- Nav -->
+  <nav>
+    <!-- Logo: 3 overlapping circles -->
+    <div class="logo">
+      <svg width="36" height="24" viewBox="0 0 36 24" aria-hidden="true">
+        <circle cx="8"  cy="12" r="9" fill="#4361ee" opacity="0.85"/>
+        <circle cx="18" cy="12" r="9" fill="#7209b7" opacity="0.75"/>
+        <circle cx="28" cy="12" r="9" fill="#f72585" opacity="0.75"/>
+      </svg>
+    </div>
+    <h1>Space Missions Dashboard</h1>
+    <a href="tests.html">🧪 Run Tests</a>
+  </nav>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <button class="btn btn-primary"   id="btn-load">📂 Load CSV</button>
+    <button class="btn btn-secondary" id="btn-reload" disabled>🔄 Reload</button>
+    <input  type="file" id="csv-input" accept=".csv" style="display:none" />
+    <span id="file-status" class="status-idle">No file loaded</span>
+  </div>
+
+  <!-- Main content (placeholder until full dashboard is built) -->
+  <main id="main-content">
+    <div class="upload-icon">🚀</div>
+    <h2>Load your space missions CSV to begin</h2>
+    <p>
+      Click <strong>Load CSV</strong> above and select
+      <code>data/sample.csv</code> (or the full <code>space_missions.csv</code>).
+      The full dashboard is coming soon.
+    </p>
+  </main>
+
+  <!-- Libraries -->
+  <script src="libs/papaparse.min.js"
+          onerror="document.getElementById('lib-error').style.display='block'"></script>
+
+  <!-- App modules -->
+  <script src="js/data.js"></script>
+  <script src="js/functions.js"></script>
+
+  <!-- Inline boot script -->
+  <script>
+    'use strict';
+
+    const loadBtn    = document.getElementById('btn-load');
+    const reloadBtn  = document.getElementById('btn-reload');
+    const csvInput   = document.getElementById('csv-input');
+    const statusEl   = document.getElementById('file-status');
+    const mainEl     = document.getElementById('main-content');
+
+    function setStatus(text, cls) {
+      statusEl.textContent = text;
+      statusEl.className   = cls;
+    }
+
+    async function onFileLoaded(info) {
+      const sizeTxt = info.sizeMB > 0 ? ` (${info.sizeMB.toFixed(1)} MB)` : '';
+      const warnLarge = info.sizeMB > 50;
+
+      setStatus(
+        `✓ ${info.fileName}${sizeTxt} — ${info.rows.length} rows`,
+        warnLarge ? 'status-warn' : 'status-ok'
+      );
+      if (warnLarge) {
+        setStatus(
+          `⚠ Large file (${info.sizeMB.toFixed(1)} MB) — performance may be affected`,
+          'status-warn'
+        );
+      }
+
+      reloadBtn.disabled = false;
+      mainEl.innerHTML = `
+        <div class="upload-icon">✅</div>
+        <h2>${info.rows.length} missions loaded</h2>
+        <p>Full dashboard coming soon. Visit <a href="tests.html">tests.html</a> to verify the functions.</p>`;
+    }
+
+    loadBtn.addEventListener('click', () => csvInput.click());
+
+    csvInput.addEventListener('change', async e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      setStatus('Parsing…', 'status-idle');
+      try {
+        DataStore.clear();
+        const info = await DataStore.loadFromFile(file);
+        await onFileLoaded(info);
+      } catch (err) {
+        setStatus(`Error: ${err.message}`, 'status-error');
+      }
+    });
+
+    reloadBtn.addEventListener('click', async () => {
+      setStatus('Reloading…', 'status-idle');
+      try {
+        DataStore.clear();
+        const info = await DataStore.reload();
+        await onFileLoaded(info);
+      } catch (err) {
+        setStatus(`Error: ${err.message}`, 'status-error');
+      }
+    });
+  </script>
+
+</body>
+</html>

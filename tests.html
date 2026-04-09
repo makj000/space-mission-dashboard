@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Space Missions — Test Runner</title>
+  <style>
+    /* ── Reset & base ─────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      background: #f4f6f9;
+      color: #1a1a2e;
+      min-height: 100vh;
+    }
+
+    /* ── Nav ──────────────────────────────────────────────── */
+    nav {
+      background: #1a1a2e;
+      color: #fff;
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      height: 52px;
+    }
+
+    /* 3-overlapping-circles logo */
+    .logo svg { display: block; }
+
+    nav h1 {
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      flex: 1;
+    }
+
+    nav a { color: #a0aec0; text-decoration: none; font-size: 13px; }
+    nav a:hover { color: #fff; }
+
+    /* ── Toolbar ──────────────────────────────────────────── */
+    .toolbar {
+      background: #fff;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      padding: 7px 14px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: opacity .15s;
+    }
+    .btn:hover { opacity: .85; }
+    .btn-primary  { background: #4361ee; color: #fff; }
+    .btn-secondary{ background: #e2e8f0; color: #2d3748; }
+    .btn-screenshot{ background: #2d3748; color: #fff; display: none; }
+
+    #data-status {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 4px;
+      margin-left: auto;
+    }
+    .status-ok    { background: #c6f6d5; color: #276749; }
+    .status-error { background: #fed7d7; color: #9b2c2c; }
+
+    /* ── Summary banner ───────────────────────────────────── */
+    #summary {
+      padding: 12px 20px;
+      font-size: 15px;
+      font-weight: 600;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .summary-pass { background: #c6f6d5; color: #22543d; }
+    .summary-fail { background: #fed7d7; color: #742a2a; }
+
+    /* ── Results table ────────────────────────────────────── */
+    #results-container {
+      padding: 20px;
+      overflow-x: auto;
+    }
+
+    .test-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 4px rgba(0,0,0,.08);
+    }
+
+    .test-table th {
+      background: #2d3748;
+      color: #e2e8f0;
+      text-align: left;
+      padding: 10px 14px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .6px;
+    }
+
+    .test-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid #f0f4f8;
+      vertical-align: top;
+    }
+
+    .test-table tr:last-child td { border-bottom: none; }
+    .test-table tr.pass { background: #f0fff4; }
+    .test-table tr.fail { background: #fff5f5; }
+
+    .test-table code {
+      font-family: 'SF Mono', 'Fira Mono', monospace;
+      font-size: 12px;
+      background: #edf2f7;
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+
+    .status { font-weight: 700; white-space: nowrap; }
+    tr.pass .status { color: #276749; }
+    tr.fail .status { color: #9b2c2c; }
+
+    /* ── Responsive ───────────────────────────────────────── */
+    @media (max-width: 640px) {
+      .test-table th:nth-child(4),
+      .test-table td:nth-child(4) { display: none; } /* hide Expected col */
+    }
+
+    /* ── Library error banner ─────────────────────────────── */
+    #lib-error {
+      display: none;
+      background: #fff3cd;
+      color: #856404;
+      padding: 12px 20px;
+      border-bottom: 1px solid #ffc107;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Library load error (shown by onerror handlers below) -->
+  <div id="lib-error">
+    ⚠️ One or more required libraries failed to load. Tests cannot run.
+    Check that <code>libs/papaparse.min.js</code> and <code>libs/html2canvas.min.js</code> exist.
+  </div>
+
+  <!-- Nav -->
+  <nav>
+    <!-- Logo: 3 overlapping circles -->
+    <div class="logo">
+      <svg width="36" height="24" viewBox="0 0 36 24" aria-hidden="true">
+        <circle cx="8"  cy="12" r="9" fill="#4361ee" opacity="0.85"/>
+        <circle cx="18" cy="12" r="9" fill="#7209b7" opacity="0.75"/>
+        <circle cx="28" cy="12" r="9" fill="#f72585" opacity="0.75"/>
+      </svg>
+    </div>
+    <h1>Space Missions — Test Runner</h1>
+    <a href="index.html">← Dashboard</a>
+  </nav>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <button class="btn btn-primary"  id="btn-run">▶ Run Tests</button>
+    <button class="btn btn-secondary" id="btn-load-csv">📂 Load different CSV</button>
+    <input  type="file" id="csv-input" accept=".csv" style="display:none" />
+    <button class="btn btn-screenshot" id="btn-pick-dir">📁 Pick screenshot folder</button>
+    <span id="data-status" class="status-ok">Loading data…</span>
+  </div>
+
+  <!-- Summary -->
+  <div id="summary">Waiting to run…</div>
+
+  <!-- Results table -->
+  <div id="results-container">
+    <p style="color:#718096; padding:10px 0;">Press "Run Tests" to begin.</p>
+  </div>
+
+  <!-- Libraries (local, offline-safe) -->
+  <script src="libs/papaparse.min.js"
+          onerror="document.getElementById('lib-error').style.display='block'"></script>
+  <script src="libs/html2canvas.min.js"
+          onerror="document.getElementById('lib-error').style.display='block'"></script>
+
+  <!-- App modules -->
+  <script src="js/data.js"></script>
+  <script src="js/functions.js"></script>
+  <script src="js/tests.js"></script>
+
+</body>
+</html>
