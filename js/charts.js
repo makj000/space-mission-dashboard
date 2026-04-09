@@ -17,6 +17,17 @@
 const Charts = (() => {
   'use strict';
 
+  // ── Shared colour palette ────────────────────────────────────────────────────
+  // Each chart group shares a colour so related charts are visually linked.
+  //   company  → blue  (#4361ee) : top-companies, success-rate (base/highlight)
+  //   time     → pink  (#f72585) : launches-year, cost-trends
+  //   location → purple(#7209b7) : launches-location
+  const _COLOR = {
+    company:  { bg: 'rgba(67,97,238,0.75)',   border: 'rgba(67,97,238,1)',   fill: 'rgba(67,97,238,0.12)'  },
+    time:     { bg: 'rgba(247,37,133,0.70)',   border: 'rgba(247,37,133,1)',  fill: 'rgba(247,37,133,0.10)' },
+    location: { bg: 'rgba(114,9,183,0.70)',    border: 'rgba(114,9,183,1)',   fill: 'rgba(114,9,183,0.12)'  },
+  };
+
   const _instances = {};        // keyed by canvas id
   const _originalBgColors = {}; // saved bg colors per chart before highlight
   let _highlightedLabel = null; // currently highlighted entity label
@@ -214,8 +225,8 @@ const Charts = (() => {
         datasets: [{
           label: 'Missions',
           data: capped,
-          backgroundColor: 'rgba(67,97,238,0.75)',
-          borderColor:     'rgba(67,97,238,1)',
+          backgroundColor: _COLOR.company.bg,
+          borderColor:     _COLOR.company.border,
           borderWidth: 1,
           borderRadius: 3
         }]
@@ -295,16 +306,8 @@ const Charts = (() => {
         : 0;
     });
 
-    const colors = rates.map(r =>
-      r >= 80 ? 'rgba(6,214,160,0.75)' :
-      r >= 50 ? 'rgba(255,209,102,0.75)' :
-                'rgba(239,35,60,0.75)'
-    );
-    const borders = rates.map(r =>
-      r >= 80 ? 'rgb(6,214,160)' :
-      r >= 50 ? 'rgb(255,209,102)' :
-                'rgb(239,35,60)'
-    );
+    const colors  = rates.map(() => _COLOR.company.bg);
+    const borders = rates.map(() => _COLOR.company.border);
 
     const ctx = document.getElementById(id);
     if (!ctx) return;
@@ -453,8 +456,8 @@ const Charts = (() => {
         datasets: [{
           label: 'Launches',
           data: capped,
-          borderColor:     'rgba(67,97,238,1)',
-          backgroundColor: 'rgba(67,97,238,0.12)',
+          borderColor:     _COLOR.time.border,
+          backgroundColor: _COLOR.time.fill,
           borderWidth: 2,
           pointRadius: years.length > 40 ? 2 : 4,
           pointHoverRadius: 6,
@@ -548,8 +551,8 @@ const Charts = (() => {
         datasets: [{
           label: 'Avg Cost (M$)',
           data: capped,
-          borderColor:     'rgba(247,37,133,1)',
-          backgroundColor: 'rgba(247,37,133,0.1)',
+          borderColor:     _COLOR.time.border,
+          backgroundColor: _COLOR.time.fill,
           borderWidth: 2,
           pointRadius: years.length > 30 ? 2 : 4,
           pointHoverRadius: 6,
@@ -646,8 +649,8 @@ const Charts = (() => {
         datasets: [{
           label: 'Launches',
           data: capped,
-          backgroundColor: 'rgba(114,9,183,0.7)',
-          borderColor:     'rgba(114,9,183,1)',
+          backgroundColor: _COLOR.location.bg,
+          borderColor:     _COLOR.location.border,
           borderWidth: 1,
           borderRadius: 3
         }]
