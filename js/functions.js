@@ -155,3 +155,44 @@ function getTopCompaniesByMissionCount(n) {
 }
 
 window.getTopCompaniesByMissionCount = getTopCompaniesByMissionCount;
+
+// ── Function 5: getMissionStatusCount ────────────────────────────────────────
+
+/**
+ * Returns the count of missions for each mission status.
+ *
+ * @returns {Object} Keys: "Success", "Failure", "Partial Failure", "Prelaunch Failure"
+ */
+function getMissionStatusCount() {
+  _requireData();
+
+  const result = { 'Success': 0, 'Failure': 0, 'Partial Failure': 0, 'Prelaunch Failure': 0 };
+  for (const row of DataStore.getData()) {
+    const status = (row.MissionStatus || '').trim();
+    if (Object.prototype.hasOwnProperty.call(result, status)) {
+      result[status]++;
+    }
+  }
+  return result;
+}
+
+window.getMissionStatusCount = getMissionStatusCount;
+
+// ── Function 6: getMissionsByYear ─────────────────────────────────────────────
+
+/**
+ * Returns the total number of missions launched in a specific year.
+ *
+ * @param  {number} year  Four-digit year (positive integer).
+ * @returns {number}      Non-negative integer.
+ * @throws {Error}        If year is not a positive integer.
+ */
+function getMissionsByYear(year) {
+  _requirePositiveInteger(year, 'year', 'getMissionsByYear');
+  _requireData();
+
+  const needle = String(year);
+  return DataStore.getData().filter(row => (row.Date || '').startsWith(needle + '-')).length;
+}
+
+window.getMissionsByYear = getMissionsByYear;
