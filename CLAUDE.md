@@ -179,5 +179,43 @@ The page should be responsive to small screen sizes
 - if libraries fail to load, show a user-friendly message
 
 ## 11. Reasoning
-Give some information why you chose a visualization and a visualization method 
+Give some information why you chose a visualization and a visualization method
 
+## 12. Versioning
+
+Version is stored in `js/version.js` as `const APP_VERSION = 'X.Y.Z'` and
+displayed in the nav bar.
+
+- **Patch** (Z): Incremented automatically by Claude Code's Stop hook whenever
+  any `js/` or `css/` file is edited in a session.
+- **Minor** (Y): Incremented automatically by the git `pre-push` hook
+  (`.git/hooks/pre-push`) when you run `git push` from Terminal. Patch resets
+  to 0.
+- **Major** (X): Controlled manually — edit `js/version.js` directly.
+
+Do not edit `version.js` for any other reason; the hooks own patch/minor bumps.
+
+## 13. Testing Notes
+
+- `tests.html` runs entirely in-browser with no server required.
+- The embedded `SAMPLE_CSV` in `js/tests.js` is the source of truth for
+  sample-based test expectations (10 rows). Do not swap it for a larger dataset.
+- Full-CSV test cases (prefixed `full_`) only run when DataStore has >100 rows
+  (i.e. `data/space_missions.csv` loaded via the **Load different CSV** button).
+- The Stop hook in `.claude/settings.local.json` opens `tests.html` in all
+  installed browsers after any code-editing session.
+- `tests.html` cannot auto-load `data/space_missions.csv` via `fetch()` when
+  opened as a `file://` URL (CORS restriction). Use the Load button instead.
+
+## 14. Libraries (all vendored in `libs/`, no CDN)
+
+- `papaparse.min.js` — CSV parsing
+- `chart.umd.min.js` — Chart.js 4.4.3, all visualizations
+- `html2canvas.min.js` — test failure screenshots
+
+Do not replace these with CDN links; the project must work offline.
+
+## 15. Architecture
+
+See `ARCHITECTURE.md` for the full module map, data flow diagram,
+chart rationale, and module API reference.

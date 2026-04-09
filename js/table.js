@@ -93,6 +93,8 @@ const Table = (() => {
 
     if (_sorted.length === 0) {
       UI.showEmpty(container, 'No missions match your current filters or search.');
+      const countEl = document.getElementById('table-row-count');
+      if (countEl) countEl.textContent = '0 rows found';
       _renderPagination(0, 0);
       return;
     }
@@ -143,6 +145,9 @@ const Table = (() => {
         _refresh();
       });
     });
+
+    const countEl = document.getElementById('table-row-count');
+    if (countEl) countEl.textContent = `${total.toLocaleString()} row${total !== 1 ? 's' : ''} found`;
 
     _renderPagination(total, pageRows.length);
   }
