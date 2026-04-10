@@ -214,14 +214,6 @@
       statusEl.className   = cls;
     }
 
-    // ── Post-refresh hint ─────────────────────────────────────────────────────
-    // If the page was reloaded via the ↺ button, sessionStorage carries the
-    // previous filename so we can prompt the user to re-load their CSV.
-    const _refreshedFile = sessionStorage.getItem('_relyPageRefreshed');
-    if (_refreshedFile) {
-      sessionStorage.removeItem('_relyPageRefreshed');
-      setStatus(`↺ Code refreshed — re-load: ${_refreshedFile}`, 'status-warn');
-    }
 
     let _loadedTimer = null;
     let _isLoading   = false;
@@ -387,9 +379,9 @@
       verEl.style.cursor = 'default';
       verEl.title = 'Click to refresh page source (reloads all code from disk)';
       verEl.addEventListener('click', () => {
-        const fileName = DataStore.getFileName();
-        if (fileName) sessionStorage.setItem('_relyPageRefreshed', fileName);
-        location.reload();
+        // Navigate to a cache-busting URL so the browser re-fetches all JS/CSS
+        // from disk even when index.html itself hasn't changed.
+        location.replace(location.pathname + '?_=' + Date.now());
       });
     }
   </script>
