@@ -48,20 +48,78 @@ const Charts = (() => {
    * Values above Q3 + 3×IQR are capped at capValue.
    */
   function _capOutliers(values) {
-    if (values.length < 4) return { capped: [...values], capValue: null, hasOutliers: false };
+    if (values.length < 2) return { capped: [...values], capValue: null, hasOutliers: false };
 
     const sorted = [...values].sort((a, b) => a - b);
-    const q1 = sorted[Math.floor(sorted.length * 0.25)];
-    const q3 = sorted[Math.floor(sorted.length * 0.75)];
-    const iqr = q3 - q1;
-    const fence = q3 + 3 * iqr;
+    const max    = sorted[sorted.length - 1];
 
-    const hasOutliers = values.some(v => v > fence);
-    if (!hasOutliers) return { capped: [...values], capValue: null, hasOutliers: false };
+    // Method 1 — IQR fence (statistically robust for larger datasets).
+    // Q3 + 3×IQR is the standard "far outlier" boundary.
+    let outlierFence = null;
+    if (sorted.length >= 4) {
+      const q1    = sorted[Math.floor(sorted.length * 0.25)];
+      const q3    = sorted[Math.floor(sorted.length * 0.75)];
+      const fence = q3 + 3 * (q3 - q1);
+      if (max > fence) outlierFence = fence;
+    }
 
-    const capValue = fence * 1.1;   // cap display at 10% above fence
-    const capped   = values.map(v => (v > fence ? capValue : v));
-    return { capped, capValue, hasOutliers };
+    // Method 2 — Ratio fallback: if max > 5× median, it's an outlier.
+    // This catches cases where a small dataset causes Q3 to absorb the outlier
+    // value, pushing the IQR fence above the outlier and missing it entirely.
+    // Uses the second-largest value as the fence so only the maximum is capped.
+    if (outlierFence === null) {
+      const median = sorted[Math.floor((sorted.length - 1) / 2)];
+      if (median > 0 && max > 5 * median) {
+        outlierFence = sorted[sorted.length - 2]; // everything below the outlier
+      }
+    }
+
+    if (outlierFence === null) return { capped: [...values], capValue: null, hasOutliers: false };
+
+    // Cap at 30% above the highest normal value so the axis stays tight
+    // around the real data range while the outlier bar is visually distinct.
+    const maxNormal = sorted.filter(v => v <= outlierFence).pop() ?? sorted[sorted.length - 2];
+    const capValue  = maxNormal * 1.3;
+    const capped    = values.map(v => (v > outlierFence ? capValue : v));
+    return { capped, capValue, hasOutliers: true };
+  }
+
+  // ── Stripe pattern for capped bars ──────────────────────────────────────────
+
+  /**
+   * Returns a repeating 45° diagonal-stripe CanvasPattern built from the
+   * chart's border colour.  Cached per colour so each render call is cheap.
+   * A capped bar gets this pattern instead of the solid fill, making it
+   * immediately obvious the bar is not drawn to its true scale.
+   */
+  const _stripeCache = {};
+  function _stripePattern(borderColor) {
+    if (_stripeCache[borderColor]) return _stripeCache[borderColor];
+    const SIZE = 10;
+    const c    = document.createElement('canvas');
+    c.width = SIZE; c.height = SIZE;
+    const ctx  = c.getContext('2d');
+    // Faint base fill keeps the bar in the chart's colour family
+    ctx.fillStyle = borderColor.replace(/[\d.]+\)$/, '0.18)');
+    ctx.fillRect(0, 0, SIZE, SIZE);
+    // Single diagonal line – tiles seamlessly at 45° in 'repeat' mode
+    ctx.strokeStyle = borderColor.replace(/[\d.]+\)$/, '0.72)');
+    ctx.lineWidth   = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(0, SIZE); ctx.lineTo(SIZE, 0);
+    ctx.stroke();
+    _stripeCache[borderColor] = ctx.createPattern(c, 'repeat');
+    return _stripeCache[borderColor];
+  }
+
+  /**
+   * Build a per-bar backgroundColor array where bars whose raw value was
+   * capped (raw[i] !== capped[i]) receive a stripe pattern.
+   */
+  function _bgColors(raw, capped, solidColor, borderColor) {
+    return raw.map((v, i) =>
+      v !== capped[i] ? _stripePattern(borderColor) : solidColor
+    );
   }
 
   // ── Shared chart defaults ────────────────────────────────────────────────────
@@ -72,17 +130,29 @@ const Charts = (() => {
       delete _instances[id];
     }
     delete _originalBgColors[id];
+    // Restore the canvas (showEmpty hides it) and remove any empty-state overlay
+    // so the next render finds a visible canvas ready for a new Chart instance.
+    const canvas = document.getElementById(id);
+    if (canvas) {
+      canvas.style.display = '';
+      const emptyEl = canvas.parentElement?.querySelector('.empty-state');
+      if (emptyEl) emptyEl.remove();
+    }
   }
 
   // ── Cross-chart highlight ────────────────────────────────────────────────────
 
-  function _dimColor(rgba) {
-    return rgba.replace(/rgba?\(([^,]+),([^,]+),([^,]+)(?:,[^)]+)?\)/,
+  function _dimColor(c) {
+    // CanvasPattern (stripe) — collapse to a barely-visible fill when dimmed
+    if (typeof c !== 'string') return 'rgba(160,160,160,0.10)';
+    return c.replace(/rgba?\(([^,]+),([^,]+),([^,]+)(?:,[^)]+)?\)/,
       (_, r, g, b) => `rgba(${r},${g},${b},0.12)`);
   }
 
-  function _fullColor(rgba) {
-    return rgba.replace(/rgba?\(([^,]+),([^,]+),([^,]+)(?:,[^)]+)?\)/,
+  function _fullColor(c) {
+    // CanvasPattern (stripe) — return it unchanged; the stripe IS the full style
+    if (typeof c !== 'string') return c;
+    return c.replace(/rgba?\(([^,]+),([^,]+),([^,]+)(?:,[^)]+)?\)/,
       (_, r, g, b) => `rgba(${r},${g},${b},1)`);
   }
 
@@ -222,6 +292,7 @@ const Charts = (() => {
     const labels = sorted.map(([name]) => name);
     const raw    = sorted.map(([, n]) => n);
     const { capped, capValue, hasOutliers } = _capOutliers(raw);
+    const colors = _bgColors(raw, capped, _COLOR.company.bg, _COLOR.company.border);
 
     const ctx = document.getElementById(id);
     if (!ctx) return;
@@ -233,7 +304,7 @@ const Charts = (() => {
         datasets: [{
           label: 'Missions',
           data: capped,
-          backgroundColor: _COLOR.company.bg,
+          backgroundColor: colors,
           borderColor:     _COLOR.company.border,
           borderWidth: 1,
           borderRadius: 3
@@ -278,7 +349,7 @@ const Charts = (() => {
     _addDblClickFilter(id, 'company');
 
     if (hasOutliers && noteEl) {
-      noteEl.textContent = '* Some values are capped for scale; hover for actual counts.';
+      noteEl.textContent = '* Striped bar is scaled down — actual value shown in tooltip.';
     }
   }
 
@@ -459,6 +530,7 @@ const Charts = (() => {
     const counts = years.map(y => yearCounts[y]);
 
     const { capped, capValue, hasOutliers } = _capOutliers(counts);
+    const colors = _bgColors(counts, capped, _COLOR.time.bg, _COLOR.time.border);
 
     const ctx = document.getElementById(id);
     if (!ctx) return;
@@ -470,7 +542,7 @@ const Charts = (() => {
         datasets: [{
           label: 'Launches',
           data: capped,
-          backgroundColor: _COLOR.time.bg,
+          backgroundColor: colors,
           borderColor:     _COLOR.time.border,
           borderWidth: 1,
           borderRadius: 3
@@ -514,7 +586,7 @@ const Charts = (() => {
     _addDblClickFilter(id, 'year');
 
     if (hasOutliers && noteEl) {
-      noteEl.textContent = '* Some values are capped for scale; hover for actual counts.';
+      noteEl.textContent = '* Striped bar is scaled down — actual value shown in tooltip.';
     }
   }
 
@@ -553,6 +625,7 @@ const Charts = (() => {
 
     const avgs = years.map(y => parseFloat((yearTotals[y] / yearCounts[y]).toFixed(2)));
     const { capped, capValue, hasOutliers } = _capOutliers(avgs);
+    const colors = _bgColors(avgs, capped, _COLOR.time.bg, _COLOR.time.border);
 
     const ctx = document.getElementById(id);
     if (!ctx) return;
@@ -564,7 +637,7 @@ const Charts = (() => {
         datasets: [{
           label: 'Avg Cost (M$)',
           data: capped,
-          backgroundColor: _COLOR.time.bg,
+          backgroundColor: colors,
           borderColor:     _COLOR.time.border,
           borderWidth: 1,
           borderRadius: 3
@@ -612,7 +685,7 @@ const Charts = (() => {
     _addDblClickFilter(id, 'year');
 
     if (hasOutliers && noteEl) {
-      noteEl.textContent = '* Some values are capped for scale; hover for actual averages.';
+      noteEl.textContent = '* Striped bar is scaled down — actual value shown in tooltip.';
     }
   }
 
@@ -650,6 +723,7 @@ const Charts = (() => {
     const fullLabels = sorted.map(([loc]) => loc);
     const raw = sorted.map(([, n]) => n);
     const { capped, capValue, hasOutliers } = _capOutliers(raw);
+    const colors = _bgColors(raw, capped, _COLOR.location.bg, _COLOR.location.border);
 
     const ctx = document.getElementById(id);
     if (!ctx) return;
@@ -661,7 +735,7 @@ const Charts = (() => {
         datasets: [{
           label: 'Launches',
           data: capped,
-          backgroundColor: _COLOR.location.bg,
+          backgroundColor: colors,
           borderColor:     _COLOR.location.border,
           borderWidth: 1,
           borderRadius: 3
@@ -699,7 +773,7 @@ const Charts = (() => {
     _addDblClickFilter(id, 'location', fullLabels);
 
     if (hasOutliers && noteEl) {
-      noteEl.textContent = '* Some values are capped for scale; hover for actual counts.';
+      noteEl.textContent = '* Striped bar is scaled down — actual value shown in tooltip.';
     }
   }
 

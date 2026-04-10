@@ -109,12 +109,22 @@ const UI = (() => {
   // ── Empty states ─────────────────────────────────────────────────────────────
 
   function showEmpty(containerEl, msg = 'No data matches your criteria.') {
-    containerEl.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-icon">🔭</div>
-        <h3>No results</h3>
-        <p>${msg}</p>
-      </div>`;
+    // Hide the canvas but keep it in the DOM so Chart.js can re-use it when
+    // data returns. Destroying it (via innerHTML =) means getElementById()
+    // returns null on the next render and the chart never comes back.
+    const canvas = containerEl.querySelector('canvas');
+    if (canvas) canvas.style.display = 'none';
+
+    let div = containerEl.querySelector('.empty-state');
+    if (!div) {
+      div = document.createElement('div');
+      div.className = 'empty-state';
+      containerEl.appendChild(div);
+    }
+    div.innerHTML = `
+      <div class="empty-icon">🔭</div>
+      <h3>No results</h3>
+      <p>${msg}</p>`;
   }
 
   // ── Landing (no file loaded) ──────────────────────────────────────────────────
