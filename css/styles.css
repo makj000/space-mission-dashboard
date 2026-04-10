@@ -225,6 +225,7 @@ nav a:hover { color: #fff; }
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-width: 0; /* allow grid item to shrink below canvas content width */
 }
 
 .chart-card h3 {
@@ -241,8 +242,11 @@ nav a:hover { color: #fff; }
 
 .chart-card .chart-wrap {
   position: relative;
-  flex: 1;
-  min-height: 260px;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  min-height: 200px;  /* floor on very narrow widths */
+  max-height: 460px;  /* cap so tall viewports don't blow up the chart */
+  overflow: hidden;   /* clip canvas during shrink so it doesn't push the card wider */
 }
 
 .outlier-note {
@@ -443,6 +447,8 @@ table.data-table tr:hover td { background: #f7fafc; }
 @media (max-width: 900px) {
   .charts-grid { grid-template-columns: 1fr; }
   .stats-row   { grid-template-columns: repeat(2, 1fr); }
+  /* Single-column: chart is full width so 16/9 gets very tall — use squarer ratio */
+  .chart-card .chart-wrap { aspect-ratio: 4 / 3; max-height: 400px; }
 }
 
 @media (max-width: 560px) {
