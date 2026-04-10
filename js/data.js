@@ -141,7 +141,11 @@ const DataStore = (() => {
           }
           if (results.errors.length > 0) console.warn('CSV chunk warnings:', results.errors);
           Array.prototype.push.apply(_rows, results.data);
-          bytesLoaded = Math.min(bytesLoaded + CHUNK_SIZE, file.size);
+          // Use PapaParse's real byte cursor when available; fall back to the
+          // CHUNK_SIZE accumulator so progress is always accurate.
+          bytesLoaded = (results.meta && results.meta.cursor)
+            ? Math.min(results.meta.cursor, file.size)
+            : Math.min(bytesLoaded + CHUNK_SIZE, file.size);
           _loaded   = _rows.length > 0;
           _fileName = file.name;
           if (onChunk) onChunk({

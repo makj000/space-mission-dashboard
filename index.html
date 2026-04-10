@@ -292,8 +292,9 @@
 
       function onChunk({ isDone, rowCount, bytesLoaded, bytesTotal }) {
         if (isDone) return; // handled after promise resolves
-        const pct = bytesTotal > 0 ? Math.round(bytesLoaded / bytesTotal * 100) : 0;
-        setStatus(`Parsing… ${rowCount.toLocaleString()} rows loaded`, 'status-idle');
+        // Loading occupies the first 50% of the bar; charts get the second 50%.
+        const pct = bytesTotal > 0 ? Math.round(bytesLoaded / bytesTotal * 50) : 0;
+        setStatus(`Parsing… ${rowCount.toLocaleString()} rows loaded`, 'status-idle status-parsing');
         if (progressEl) progressEl.style.setProperty('--load-pct', pct + '%');
         if (rowCount > 0) scheduleRender();
       }
@@ -303,20 +304,37 @@
       try {
         const info = await loadFn(onChunk);
 
-        // Cancel any pending partial render; do the definitive final render
+        // Cancel any pending partial render; chart rendering drives 50→100%.
         if (renderTimer) { clearTimeout(renderTimer); renderTimer = null; }
 
-        const sizeTxt = info.sizeMB > 0 ? ` · ${info.sizeMB.toFixed(1)} MB` : '';
-        setStatus(`✓ ${info.fileName}${sizeTxt} · ${info.rows.length.toLocaleString()} rows`, 'status-ok');
-        UI.hideBanner();
+        // Loading done — snap to 50% and yield a frame so the browser paints it.
+        if (progressEl) progressEl.style.setProperty('--load-pct', '50%');
+        await new Promise(r => requestAnimationFrame(r));
 
         if (!dashboardShown) {
           filterBar.style.display = 'flex';
           reloadBtn.disabled      = false;
           UI.showDashboard();
         }
-        Filters.init();   // sets full date range now that all rows are loaded
-        Filters.apply();
+
+        Filters.init();                      // populate dropdowns, set date range
+        const filtered = Filters.getFiltered();
+        UI.renderStats(filtered);            // fast — update stat cards
+
+        // Render charts one at a time (50→100%). Each step yields a frame + 80 ms
+        // pause so the browser paints the bar increment before the next chart blocks.
+        await Charts.initProgressive(filtered, (done, total) => {
+          const pct = 50 + Math.round(done / total * 50);
+          if (progressEl) progressEl.style.setProperty('--load-pct', pct + '%');
+        });
+
+        Table.render(filtered);              // render data table
+
+        // Show file info only after all rendering is complete so the status
+        // text change doesn't interrupt the progress bar mid-sequence.
+        const sizeTxt = info.sizeMB > 0 ? ` · ${info.sizeMB.toFixed(1)} MB` : '';
+        setStatus(`✓ ${info.fileName}${sizeTxt} · ${info.rows.length.toLocaleString()} rows`, 'status-ok');
+        UI.hideBanner();
         _setLoadBtn('loaded');
 
       } catch (err) {
@@ -351,14 +369,14 @@
         return;
       }
 
-      setStatus('Parsing…', 'status-idle');
+      setStatus('Parsing…', 'status-idle status-parsing');
       Charts.destroy();
       DataStore.clear();
       await _streamLoad(cb => DataStore.loadFromFileStreaming(file, cb));
     });
 
     reloadBtn.addEventListener('click', async () => {
-      setStatus('Reloading…', 'status-idle');
+      setStatus('Reloading…', 'status-idle status-parsing');
       Charts.destroy();
       // Note: do NOT call DataStore.clear() here — reload() needs _lastFile intact
       await _streamLoad(cb => DataStore.reload(cb));

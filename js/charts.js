@@ -714,9 +714,38 @@ const Charts = (() => {
     _renderLaunchesByLocation(rows);
   }
 
+  /**
+   * Renders charts one at a time, yielding a animation frame between each so
+   * the browser can paint incremental progress. Used by the boot loader to
+   * drive the 50–100% segment of the progress bar.
+   *
+   * @param {Object[]} rows      Filtered rows to render.
+   * @param {Function} onStep    Called as onStep(doneCount, totalCount) after
+   *                             each chart is rendered and before the next frame.
+   */
+  async function initProgressive(rows, onStep) {
+    const renders = [
+      () => _renderTopCompanies(rows),
+      () => _renderSuccessRate(rows),
+      () => _renderMissionStatus(rows),
+      () => _renderLaunchesPerYear(rows),
+      () => _renderCostTrends(rows),
+      () => _renderLaunchesByLocation(rows),
+    ];
+    for (let i = 0; i < renders.length; i++) {
+      renders[i]();
+      if (onStep) onStep(i + 1, renders.length);
+      // Yield a frame so the browser paints the updated progress bar,
+      // then hold briefly so the user can perceive the step before the
+      // next chart render blocks the main thread again.
+      await new Promise(r => requestAnimationFrame(r));
+      await new Promise(r => setTimeout(r, 80));
+    }
+  }
+
   function destroy() {
     Object.keys(_instances).forEach(_destroy);
   }
 
-  return { init, destroy, highlight, clearHighlight, highlightYear, clearYearHighlight };
+  return { init, initProgressive, destroy, highlight, clearHighlight, highlightYear, clearYearHighlight };
 })();

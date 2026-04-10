@@ -7,7 +7,7 @@ const Filters = (() => {
 
   // ── Apply filters to raw rows ─────────────────────────────────────────────────
 
-  function apply() {
+  function _getFiltered() {
     const rows = DataStore.getData();
 
     const dateStart     = document.getElementById('filter-date-start')?.value || '';
@@ -17,7 +17,7 @@ const Filters = (() => {
     const rocketStatus  = document.getElementById('filter-rocket-status')?.value  || '';
     const location      = document.getElementById('filter-location')?.value       || '';
 
-    const filtered = rows.filter(row => {
+    return rows.filter(row => {
       const d = (row.Date || '').trim();
       if (dateStart && d < dateStart) return false;
       if (dateEnd   && d > dateEnd)   return false;
@@ -27,11 +27,16 @@ const Filters = (() => {
       if (location      && (row.Location || '').trim() !== location) return false;
       return true;
     });
+  }
 
+  /** Returns the current filtered rows without triggering any rendering. */
+  function getFiltered() { return _getFiltered(); }
+
+  function apply() {
+    const filtered = _getFiltered();
     UI.renderStats(filtered);
     Charts.init(filtered);
     Table.render(filtered);
-
     return filtered;
   }
 
@@ -153,5 +158,5 @@ const Filters = (() => {
     apply();
   }
 
-  return { init, apply, reset, applyFilter };
+  return { init, apply, getFiltered, reset, applyFilter };
 })();

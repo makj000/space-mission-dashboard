@@ -103,6 +103,14 @@ nav a:hover { color: #fff; }
 .status-error { background: #3b1a1a; color: #fc8181; }
 .status-warn  { background: #3b2e0d; color: #f6ad55; }
 
+@keyframes spin { to { transform: rotate(360deg); } }
+.status-parsing::before {
+  content: '↻';
+  display: inline-block;
+  animation: spin 0.9s linear infinite;
+  margin-right: 5px;
+}
+
 /* ── Library error banner ───────────────────────────────────────────────────── */
 #lib-error {
   display: none;
