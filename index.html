@@ -199,13 +199,15 @@
           onerror="document.getElementById('lib-error').style.display='block'"></script>
 
   <!-- ── App modules ────────────────────────────────────────────────────────── -->
-  <script src="js/version.js"></script>
-  <script src="js/data.js"></script>
-  <script src="js/functions.js"></script>
-  <script src="js/ui.js"></script>
-  <script src="js/charts.js"></script>
-  <script src="js/table.js"></script>
-  <script src="js/filters.js"></script>
+  <script>
+    // Inject cache-busting version into every app script src at load time
+    (function() {
+      const v = Date.now();
+      ['js/version.js','js/data.js','js/functions.js','js/ui.js','js/charts.js','js/table.js','js/filters.js'].forEach(function(src) {
+        document.write('<script src="' + src + '?v=' + v + '"><\/script>');
+      });
+    })();
+  </script>
 
   <!-- ── Boot ───────────────────────────────────────────────────────────────── -->
   <script>
@@ -387,6 +389,34 @@
       // Note: do NOT call DataStore.clear() here — reload() needs _lastFile intact
       await _streamLoad(cb => DataStore.reload(cb));
     });
+
+    // ── Auto-load default CSV on page start ───────────────────────────────────
+    (async () => {
+      const DEFAULT_CSV = 'data/space_missions.csv';
+      try {
+        setStatus('Loading default CSV…', 'status-idle status-parsing');
+        const info = await DataStore.loadFromURL(DEFAULT_CSV);
+        // Reuse the same full render path as a manual file load
+        filterBar.style.display = 'flex';
+        reloadBtn.disabled      = false;
+        UI.showDashboard();
+        Filters.init();
+        const filtered = Filters.getFiltered();
+        UI.renderStats(filtered);
+        await Charts.initProgressive(filtered, (done, total) => {
+          const pct = 50 + Math.round(done / total * 50);
+          if (progressEl) progressEl.style.setProperty('--load-pct', pct + '%');
+        });
+        Table.render(filtered);
+        const sizeTxt = info.sizeMB > 0 ? ` · ${info.sizeMB.toFixed(1)} MB` : '';
+        setStatus(`✓ ${info.fileName}${sizeTxt} · ${info.rows.length.toLocaleString()} rows`, 'status-ok');
+        _setLoadBtn('loaded');
+      } catch (err) {
+        // Default CSV not available (e.g. opened as file://) — fall back to manual load
+        setStatus('No file loaded', 'status-idle');
+        UI.showLanding();
+      }
+    })();
 
     // ── Version badge — click to refresh all source code from disk ────────────
     if (verEl) {

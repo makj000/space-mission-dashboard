@@ -81,6 +81,32 @@ const DataStore = (() => {
   }
 
   /**
+   * Fetch a CSV from a URL and parse it (works when served over HTTP).
+   * Falls back gracefully if the file is not found.
+   * @param {string} url       Relative or absolute URL to the CSV file.
+   * @param {string} [fileName] Display name; defaults to the URL basename.
+   * @returns {Promise<{rows, fileName, sizeMB}>}
+   */
+  function loadFromURL(url, fileName) {
+    const name = fileName || url.split('/').pop();
+    return new Promise((resolve, reject) => {
+      fetch(url)
+        .then(response => {
+          if (!response.ok) {
+            reject(new Error(`Could not fetch "${url}": HTTP ${response.status}`));
+            return;
+          }
+          const sizeMB = Number(response.headers.get('content-length') || 0) / (1024 * 1024);
+          return response.text().then(text => {
+            const results = Papa.parse(text, { header: true, skipEmptyLines: true });
+            _parseComplete(results, name, sizeMB, resolve, reject);
+          });
+        })
+        .catch(err => reject(new Error(`Could not fetch "${url}": ${err.message}`)));
+    });
+  }
+
+  /**
    * Load and parse a raw CSV string (used by the test runner with embedded data).
    * @param {string} csvString
    * @param {string} [fileName]
@@ -222,5 +248,5 @@ const DataStore = (() => {
     _lastFile = null;
   }
 
-  return { loadFromFile, loadFromFileStreaming, loadFromString, reload, cancelLoad, getData, isLoaded, getFileName, clear };
+  return { loadFromFile, loadFromFileStreaming, loadFromString, loadFromURL, reload, cancelLoad, getData, isLoaded, getFileName, clear };
 })();
