@@ -15,6 +15,7 @@ const Filters = (() => {
     const company       = document.getElementById('filter-company')?.value    || '';
     const missionStatus = document.getElementById('filter-mission-status')?.value || '';
     const rocketStatus  = document.getElementById('filter-rocket-status')?.value  || '';
+    const location      = document.getElementById('filter-location')?.value       || '';
 
     const filtered = rows.filter(row => {
       const d = (row.Date || '').trim();
@@ -23,6 +24,7 @@ const Filters = (() => {
       if (company       && row.Company       !== company)       return false;
       if (missionStatus && row.MissionStatus !== missionStatus) return false;
       if (rocketStatus  && row.RocketStatus  !== rocketStatus)  return false;
+      if (location      && (row.Location || '').trim() !== location) return false;
       return true;
     });
 
@@ -46,6 +48,9 @@ const Filters = (() => {
     );
     _fillSelect('filter-rocket-status',
       [...new Set(rows.map(r => r.RocketStatus).filter(Boolean))].sort()
+    );
+    _fillSelect('filter-location',
+      [...new Set(rows.map(r => (r.Location || '').trim()).filter(Boolean))].sort()
     );
   }
 
@@ -80,7 +85,7 @@ const Filters = (() => {
     }
 
     // Reset dropdowns to "All" for a clean slate on every new file load
-    ['filter-company', 'filter-mission-status', 'filter-rocket-status'].forEach(id => {
+    ['filter-company', 'filter-mission-status', 'filter-rocket-status', 'filter-location'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = '';
     });
@@ -88,7 +93,7 @@ const Filters = (() => {
     // Wire events only once — they remain valid across file reloads
     if (!_eventsWired) {
       ['filter-date-start', 'filter-date-end',
-       'filter-company', 'filter-mission-status', 'filter-rocket-status'
+       'filter-company', 'filter-mission-status', 'filter-rocket-status', 'filter-location'
       ].forEach(id => {
         document.getElementById(id)?.addEventListener('change', apply);
       });
@@ -105,7 +110,7 @@ const Filters = (() => {
   // ── Reset ─────────────────────────────────────────────────────────────────────
 
   function reset() {
-    ['filter-company', 'filter-mission-status', 'filter-rocket-status'].forEach(id => {
+    ['filter-company', 'filter-mission-status', 'filter-rocket-status', 'filter-location'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = '';
     });
@@ -127,5 +132,26 @@ const Filters = (() => {
     apply();
   }
 
-  return { init, apply, reset };
+  // ── Apply a single filter value programmatically (e.g. from chart dblclick) ──
+
+  function applyFilter(type, value) {
+    if (type === 'company') {
+      const el = document.getElementById('filter-company');
+      if (el) el.value = value;
+    } else if (type === 'year') {
+      const startEl = document.getElementById('filter-date-start');
+      const endEl   = document.getElementById('filter-date-end');
+      if (startEl) startEl.value = `${value}-01-01`;
+      if (endEl)   endEl.value   = `${value}-12-31`;
+    } else if (type === 'missionStatus') {
+      const el = document.getElementById('filter-mission-status');
+      if (el) el.value = value;
+    } else if (type === 'location') {
+      const el = document.getElementById('filter-location');
+      if (el) el.value = value;
+    }
+    apply();
+  }
+
+  return { init, apply, reset, applyFilter };
 })();

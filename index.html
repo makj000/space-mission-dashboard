@@ -29,7 +29,7 @@
     </div>
     <h1>Space Missions Dashboard</h1>
     <button class="btn btn-ghost" id="btn-load">📂 Load CSV</button>
-    <button class="btn btn-ghost" id="btn-reload" disabled title="Reload CSV">↺</button>
+    <button class="btn btn-ghost" id="btn-reload" disabled title="Refresh page (reloads all code from disk)">↺</button>
     <input type="file" id="csv-input" accept=".csv" style="display:none" />
     <div id="file-info">
       <span id="file-status" class="status-idle">No file loaded</span>
@@ -52,6 +52,8 @@
     <select id="filter-mission-status"><option value="">All</option></select>
     <label>Rocket</label>
     <select id="filter-rocket-status"><option value="">All</option></select>
+    <label>Location</label>
+    <select id="filter-location"><option value="">All</option></select>
     <div class="filter-sep"></div>
     <button class="btn btn-secondary" id="btn-reset-filters">Reset</button>
   </div>
@@ -109,7 +111,7 @@
 
       <div class="chart-card">
         <h3>Top 15 Companies by Mission Count</h3>
-        <p class="chart-sub">Ranked by total number of launches. Horizontal bars allow long names to fit without rotation.</p>
+        <p class="chart-sub">Ranked by total number of launches. Horizontal bars allow long names to fit without rotation. Double-click a bar to filter by that company.</p>
         <div class="chart-wrap" id="chart-top-companies-wrap">
           <canvas id="chart-top-companies"></canvas>
         </div>
@@ -118,7 +120,7 @@
 
       <div class="chart-card">
         <h3>Success Rate by Company (Top 15)</h3>
-        <p class="chart-sub">Percentage of successful missions per company, for the top 15 by launch count.</p>
+        <p class="chart-sub">Percentage of successful missions per company, for the top 15 by launch count. Double-click a bar to filter by that company.</p>
         <div class="chart-wrap" id="chart-success-rate-wrap">
           <canvas id="chart-success-rate"></canvas>
         </div>
@@ -127,7 +129,7 @@
 
       <div class="chart-card">
         <h3>Launches per Year</h3>
-        <p class="chart-sub">Annual launch volume over time. Bar chart makes individual year counts easy to compare at a glance.</p>
+        <p class="chart-sub">Annual launch volume over time. Bar chart makes individual year counts easy to compare at a glance. Double-click a bar to filter to that year.</p>
         <div class="chart-wrap" id="chart-launches-year-wrap">
           <canvas id="chart-launches-year"></canvas>
         </div>
@@ -136,7 +138,7 @@
 
       <div class="chart-card">
         <h3>Average Mission Cost per Year</h3>
-        <p class="chart-sub">Average cost (M$) of missions with price data per year. Bar height makes year-over-year differences immediately visible.</p>
+        <p class="chart-sub">Average cost (M$) of missions with price data per year. Bar height makes year-over-year differences immediately visible. Double-click a bar to filter to that year.</p>
         <div class="chart-wrap" id="chart-cost-trends-wrap">
           <canvas id="chart-cost-trends"></canvas>
         </div>
@@ -145,7 +147,7 @@
 
       <div class="chart-card">
         <h3>Mission Status Breakdown</h3>
-        <p class="chart-sub">Part-to-whole view of all outcomes. Doughnut chosen over pie for readability with 4 categories.</p>
+        <p class="chart-sub">Part-to-whole view of all outcomes. Doughnut chosen over pie for readability with 4 categories. Double-click a segment to filter by that status.</p>
         <div class="chart-wrap" id="chart-mission-status-wrap">
           <canvas id="chart-mission-status"></canvas>
         </div>
@@ -153,7 +155,7 @@
 
       <div class="chart-card">
         <h3>Top 10 Launch Locations</h3>
-        <p class="chart-sub">Busiest launch sites by mission count. Horizontal bars fit long site names without rotation; tooltip shows full location.</p>
+        <p class="chart-sub">Busiest launch sites by mission count. Horizontal bars fit long site names without rotation; tooltip shows full location. Double-click a bar to filter by that location.</p>
         <div class="chart-wrap" id="chart-launches-location-wrap">
           <canvas id="chart-launches-location"></canvas>
         </div>
@@ -210,6 +212,15 @@
     function setStatus(text, cls) {
       statusEl.textContent = text;
       statusEl.className   = cls;
+    }
+
+    // ── Post-refresh hint ─────────────────────────────────────────────────────
+    // If the page was reloaded via the ↺ button, sessionStorage carries the
+    // previous filename so we can prompt the user to re-load their CSV.
+    const _refreshedFile = sessionStorage.getItem('_relyPageRefreshed');
+    if (_refreshedFile) {
+      sessionStorage.removeItem('_relyPageRefreshed');
+      setStatus(`↺ Code refreshed — re-load: ${_refreshedFile}`, 'status-warn');
     }
 
     let _loadedTimer = null;
@@ -346,11 +357,13 @@
       await _streamLoad(cb => DataStore.loadFromFileStreaming(file, cb));
     });
 
-    reloadBtn.addEventListener('click', async () => {
-      setStatus('Reloading…', 'status-idle');
-      Charts.destroy();
-      // Note: do NOT call DataStore.clear() here — reload() needs _lastFile intact
-      await _streamLoad(cb => DataStore.reload(cb));
+    reloadBtn.addEventListener('click', () => {
+      // Save the current filename so the post-refresh hint can display it.
+      // File objects cannot survive a page reload (browser security), so we
+      // store only the name for display — the user will need to re-pick the file.
+      const fileName = DataStore.getFileName();
+      if (fileName) sessionStorage.setItem('_relyPageRefreshed', fileName);
+      location.reload();   // re-reads HTML, JS, and CSS from disk
     });
   </script>
 

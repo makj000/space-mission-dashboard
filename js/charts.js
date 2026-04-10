@@ -162,6 +162,36 @@ const Charts = (() => {
     _yearHlBusy = false;
   }
 
+  // ── Double-click to filter ───────────────────────────────────────────────────
+
+  /**
+   * Attaches a dblclick listener to the chart canvas that calls
+   * Filters.applyFilter(type, label) for the element the user double-clicks.
+   * Safe to call on every render — removes any previously attached handler first.
+   *
+   * @param {string}   id             Canvas element id
+   * @param {string}   type           Filter type: 'company', 'year', 'missionStatus', 'location'
+   * @param {string[]} [labelsOverride] Full-value labels when chart displays shortened text
+   *                                    (e.g. location chart truncates long names)
+   */
+  function _addDblClickFilter(id, type, labelsOverride) {
+    const canvas = document.getElementById(id);
+    if (!canvas) return;
+    if (canvas._dblClickHandler) {
+      canvas.removeEventListener('dblclick', canvas._dblClickHandler);
+    }
+    canvas._dblClickHandler = e => {
+      const chart = _instances[id];
+      if (!chart) return;
+      const points = chart.getElementsAtEventForMode(e, 'nearest', { intersect: true }, false);
+      if (!points.length) return;
+      const idx   = points[0].index;
+      const label = labelsOverride ? labelsOverride[idx] : chart.data.labels[idx];
+      if (typeof Filters !== 'undefined') Filters.applyFilter(type, label);
+    };
+    canvas.addEventListener('dblclick', canvas._dblClickHandler);
+  }
+
   const _font = { family: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" };
 
   // ── Chart 1: Top Companies by Mission Count (horizontal bar) ─────────────────
@@ -244,6 +274,8 @@ const Charts = (() => {
         }
       }
     });
+
+    _addDblClickFilter(id, 'company');
 
     if (hasOutliers && noteEl) {
       noteEl.textContent = '* Some values are capped for scale; hover for actual counts.';
@@ -343,6 +375,8 @@ const Charts = (() => {
         }
       }
     });
+
+    _addDblClickFilter(id, 'company');
   }
 
   // ── Chart 3: Mission Status Breakdown (doughnut) ─────────────────────────────
@@ -394,6 +428,8 @@ const Charts = (() => {
         }
       }
     });
+
+    _addDblClickFilter(id, 'missionStatus');
   }
 
   // ── Chart 4: Launches per Year (line) ────────────────────────────────────────
@@ -474,6 +510,8 @@ const Charts = (() => {
         }
       }
     });
+
+    _addDblClickFilter(id, 'year');
 
     if (hasOutliers && noteEl) {
       noteEl.textContent = '* Some values are capped for scale; hover for actual counts.';
@@ -571,6 +609,8 @@ const Charts = (() => {
       }
     });
 
+    _addDblClickFilter(id, 'year');
+
     if (hasOutliers && noteEl) {
       noteEl.textContent = '* Some values are capped for scale; hover for actual averages.';
     }
@@ -655,6 +695,8 @@ const Charts = (() => {
         }
       }
     });
+
+    _addDblClickFilter(id, 'location', fullLabels);
 
     if (hasOutliers && noteEl) {
       noteEl.textContent = '* Some values are capped for scale; hover for actual counts.';
