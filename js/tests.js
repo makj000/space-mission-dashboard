@@ -13,7 +13,7 @@
  */
 'use strict';
 
-// ── Embedded sample data (mirrors data/sample.csv exactly) ───────────────────
+// ── Embedded sample data (mirrors test/test_cases.csv exactly) ───────────────
 const SAMPLE_CSV = `Company,Location,Date,Time,Rocket,Mission,RocketStatus,Price,MissionStatus
 RVSN USSR,"Site 1/5, Baikonur Cosmodrome, Kazakhstan",1957-10-04,19:28:00,Sputnik 8K71PS,Sputnik-1,Retired,,Success
 RVSN USSR,"Site 1/5, Baikonur Cosmodrome, Kazakhstan",1957-11-03,02:30:00,Sputnik 8K71PS,Sputnik-2,Retired,,Success
