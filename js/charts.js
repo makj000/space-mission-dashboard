@@ -142,36 +142,14 @@ const Charts = (() => {
     _hlBusy = false;
   }
 
-  // ── Year cross-highlight (line charts — tooltip sync) ────────────────────────
-
-  function _applyYearHighlightToChart(chartId, yearLabel) {
-    const chart = _instances[chartId];
-    if (!chart) return;
-    const idx = chart.data.labels.indexOf(yearLabel);
-    if (idx === -1) {
-      chart.setActiveElements([]);
-      chart.tooltip.setActiveElements([], { x: 0, y: 0 });
-    } else {
-      chart.setActiveElements([{ datasetIndex: 0, index: idx }]);
-      chart.tooltip.setActiveElements([{ datasetIndex: 0, index: idx }], { x: 0, y: 0 });
-    }
-    chart.update('none');
-  }
-
-  function _removeYearHighlightFromChart(chartId) {
-    const chart = _instances[chartId];
-    if (!chart) return;
-    chart.setActiveElements([]);
-    chart.tooltip.setActiveElements([], { x: 0, y: 0 });
-    chart.update('none');
-  }
+  // ── Year cross-highlight (bar charts — same dim/brighten as company charts) ───
 
   // Public: highlight a year in both year charts
   function highlightYear(yearLabel) {
     if (!yearLabel || _yearHlBusy) return;
     _yearHlBusy = true;
     _highlightedYear = yearLabel;
-    _YEAR_CHARTS.forEach(id => _applyYearHighlightToChart(id, yearLabel));
+    _YEAR_CHARTS.forEach(id => _applyHighlightToChart(id, yearLabel));
     _yearHlBusy = false;
   }
 
@@ -180,7 +158,7 @@ const Charts = (() => {
     if (_yearHlBusy) return;
     _yearHlBusy = true;
     _highlightedYear = null;
-    _YEAR_CHARTS.forEach(id => _removeYearHighlightFromChart(id));
+    _YEAR_CHARTS.forEach(id => _removeHighlightFromChart(id));
     _yearHlBusy = false;
   }
 
