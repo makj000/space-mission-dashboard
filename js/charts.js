@@ -37,7 +37,7 @@ const Charts = (() => {
   const _COMPANY_CHARTS = ['chart-top-companies', 'chart-success-rate'];
 
   // Charts that show year-level data and participate in year cross-highlight
-  const _YEAR_CHARTS = ['chart-launches-year', 'chart-cost-trends'];
+  const _YEAR_CHARTS = ['chart-launches-year', 'chart-cost-trends', 'chart-success-year'];
   let _highlightedYear = null;
   let _yearHlBusy = false;
 
@@ -779,6 +779,105 @@ const Charts = (() => {
     }
   }
 
+  // ── Chart 7: Success Rate per Year (line) ────────────────────────────────────
+  // Rationale: a line chart shows the trend in reliability over time more
+  // clearly than bars. A fixed 0–100 % Y-axis gives immediate intuition about
+  // how good (or bad) any given year was relative to perfection.
+
+  function _renderSuccessPerYear(rows) {
+    const id = 'chart-success-year';
+    _destroy(id);
+
+    if (!rows || rows.length === 0) {
+      UI.showEmpty(document.getElementById('chart-success-year-wrap'));
+      return;
+    }
+
+    // Tally success / total per year
+    const yearData = {};
+    for (const r of rows) {
+      const d = (r.Date || '').trim();
+      if (!d) continue;
+      const y = d.slice(0, 4);
+      if (!/^\d{4}$/.test(y)) continue;
+      if (!yearData[y]) yearData[y] = { success: 0, total: 0 };
+      yearData[y].total++;
+      if (r.MissionStatus === 'Success') yearData[y].success++;
+    }
+
+    const years = Object.keys(yearData).sort();
+    if (years.length === 0) {
+      UI.showEmpty(document.getElementById('chart-success-year-wrap'),
+        'No year data available for the selected filters.');
+      return;
+    }
+
+    const prec  = (typeof Filters !== 'undefined') ? Filters.getPrecision() : 5;
+    const rates = years.map(y =>
+      parseFloat((yearData[y].success / yearData[y].total * 100).toFixed(prec))
+    );
+
+    const ctx = document.getElementById(id);
+    if (!ctx) return;
+
+    _instances[id] = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: years,
+        datasets: [{
+          label: 'Success Rate (%)',
+          data: rates,
+          backgroundColor: _COLOR.time.bg,
+          borderColor:     _COLOR.time.border,
+          borderWidth: 1,
+          borderRadius: 3
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        onHover(event, activeElements, chart) {
+          if (activeElements.length === 0) {
+            if (_highlightedYear !== null) clearYearHighlight();
+            return;
+          }
+          const label = chart.data.labels[activeElements[0].index];
+          if (label !== _highlightedYear) highlightYear(label);
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label(ctx) {
+                const y = years[ctx.dataIndex];
+                const d = yearData[y];
+                const r = rates[ctx.dataIndex];
+                return ` ${r.toFixed(prec)}%  (${d.success}/${d.total} missions)`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { font: _font, maxRotation: 45, autoSkip: true, maxTicksLimit: 20 },
+            grid: { color: '#e2e8f0' }
+          },
+          y: {
+            min: 0,
+            max: 100,
+            ticks: {
+              font: _font,
+              callback: v => `${parseFloat(v.toFixed(2))}%`
+            },
+            grid: { color: '#e2e8f0' }
+          }
+        }
+      }
+    });
+
+    _addDblClickFilter(id, 'year');
+  }
+
   // ── Public API ───────────────────────────────────────────────────────────────
 
   function init(rows) {
@@ -788,6 +887,7 @@ const Charts = (() => {
     _renderLaunchesPerYear(rows);
     _renderCostTrends(rows);
     _renderLaunchesByLocation(rows);
+    _renderSuccessPerYear(rows);
   }
 
   /**
@@ -807,6 +907,7 @@ const Charts = (() => {
       () => _renderLaunchesPerYear(rows),
       () => _renderCostTrends(rows),
       () => _renderLaunchesByLocation(rows),
+      () => _renderSuccessPerYear(rows),
     ];
     for (let i = 0; i < renders.length; i++) {
       renders[i]();
