@@ -108,6 +108,7 @@ const Filters = (() => {
       });
 
       document.getElementById('btn-reset-filters')?.addEventListener('click', reset);
+      document.getElementById('btn-export-csv')?.addEventListener('click', exportCSV);
       _eventsWired = true;
     }
   }
@@ -137,6 +138,25 @@ const Filters = (() => {
     apply();
   }
 
+  // ── Export filtered rows to a CSV file ───────────────────────────────────────
+
+  function exportCSV() {
+    const filtered = _getFiltered();
+    if (!filtered.length) return;
+
+    const csv  = Papa.unparse(filtered);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    const date = new Date().toISOString().slice(0, 10);
+    a.href     = url;
+    a.download = `space_missions_${date}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   // ── Apply a single filter value programmatically (e.g. from chart dblclick) ──
 
   function applyFilter(type, value) {
@@ -158,5 +178,5 @@ const Filters = (() => {
     apply();
   }
 
-  return { init, apply, getFiltered, reset, applyFilter };
+  return { init, apply, getFiltered, reset, applyFilter, exportCSV };
 })();
