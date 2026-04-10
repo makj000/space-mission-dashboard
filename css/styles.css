@@ -162,6 +162,11 @@ nav a:hover { color: #fff; }
   flex-shrink: 0;
 }
 
+#filter-precision {
+  width: 4rem;
+  text-align: center;
+}
+
 /* ── Error / info banner ────────────────────────────────────────────────────── */
 #app-banner {
   display: none;

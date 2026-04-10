@@ -109,6 +109,18 @@ const Filters = (() => {
 
       document.getElementById('btn-reset-filters')?.addEventListener('click', reset);
       document.getElementById('btn-export-csv')?.addEventListener('click', exportCSV);
+
+      // Precision field: re-render on change (validate to non-negative integer)
+      const precisionEl = document.getElementById('filter-precision');
+      if (precisionEl) {
+        precisionEl.addEventListener('change', () => {
+          const raw = parseInt(precisionEl.value, 10);
+          if (isNaN(raw) || raw < 0) { precisionEl.value = 5; }
+          else { precisionEl.value = raw; }
+          apply();
+        });
+      }
+
       _eventsWired = true;
     }
   }
@@ -157,6 +169,16 @@ const Filters = (() => {
     URL.revokeObjectURL(url);
   }
 
+  // ── Precision helper ──────────────────────────────────────────────────────────
+
+  /** Returns the configured decimal precision (non-negative integer, default 5). */
+  function getPrecision() {
+    const el  = document.getElementById('filter-precision');
+    if (!el) return 5;
+    const raw = parseInt(el.value, 10);
+    return (!isNaN(raw) && raw >= 0) ? raw : 5;
+  }
+
   // ── Apply a single filter value programmatically (e.g. from chart dblclick) ──
 
   function applyFilter(type, value) {
@@ -178,5 +200,5 @@ const Filters = (() => {
     apply();
   }
 
-  return { init, apply, getFiltered, reset, applyFilter, exportCSV };
+  return { init, apply, getFiltered, reset, applyFilter, exportCSV, getPrecision };
 })();

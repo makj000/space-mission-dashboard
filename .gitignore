@@ -4,4 +4,5 @@
 .claude/CLAUDE.local.md
 
 data/space_missions_expanded_*.csv
+data/space_missions_2026-*.csv
 test/screenshots/

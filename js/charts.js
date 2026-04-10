@@ -382,8 +382,9 @@ const Charts = (() => {
     const rates = topCompanies.map(company => {
       const missions  = rows.filter(r => r.Company === company);
       const successes = missions.filter(r => r.MissionStatus === 'Success').length;
+      const prec = (typeof Filters !== 'undefined') ? Filters.getPrecision() : 2;
       return missions.length > 0
-        ? parseFloat((successes / missions.length * 100).toFixed(2))
+        ? parseFloat((successes / missions.length * 100).toFixed(prec))
         : 0;
     });
 
@@ -421,7 +422,7 @@ const Charts = (() => {
           legend: { display: false },
           tooltip: {
             callbacks: {
-              label: ctx => ` ${ctx.parsed.y.toFixed(2)}%`
+              label: ctx => ` ${ctx.parsed.y.toFixed((typeof Filters !== 'undefined') ? Filters.getPrecision() : 2)}%`
             }
           }
         },
@@ -623,7 +624,8 @@ const Charts = (() => {
       return;
     }
 
-    const avgs = years.map(y => parseFloat((yearTotals[y] / yearCounts[y]).toFixed(2)));
+    const _prec = (typeof Filters !== 'undefined') ? Filters.getPrecision() : 2;
+    const avgs = years.map(y => parseFloat((yearTotals[y] / yearCounts[y]).toFixed(_prec)));
     const { capped, capValue, hasOutliers } = _capOutliers(avgs);
     const colors = _bgColors(avgs, capped, _COLOR.time.bg, _COLOR.time.border);
 
@@ -674,7 +676,7 @@ const Charts = (() => {
         scales: {
           x: { ticks: { font: _font, maxRotation: 45, autoSkip: true, maxTicksLimit: 20 }, grid: { color: '#e2e8f0' } },
           y: {
-            ticks: { font: _font, callback: v => `$${v}M` },
+            ticks: { font: _font, callback: v => `$${parseFloat(v.toFixed(2))}M` },
             grid:  { color: '#e2e8f0' },
             ...(capValue ? { max: capValue * 1.05 } : {})
           }

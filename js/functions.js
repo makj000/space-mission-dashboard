@@ -2,7 +2,7 @@
  * functions.js — Required analytical functions exposed on window for
  * programmatic testing. All functions read from DataStore.getData().
  *
- * Precision: floats use 5 significant decimal digits (e.g. 87.33333).
+ * Precision: floats use a configurable significant decimal digits (e.g. 2 for 87.33).
  *
  * Caching: results are memoised per data snapshot. The cache is automatically
  * invalidated whenever DataStore.getData() returns a new array reference
@@ -288,7 +288,7 @@ window.getMostUsedRocket = getMostUsedRocket;
  *
  * @param  {number} startYear  Start year (inclusive, positive integer).
  * @param  {number} endYear    End year (inclusive, positive integer).
- * @returns {number}           Float rounded to 5 decimal digits (e.g. 87.33333).
+ * @returns {number}           Float rounded to the configured number of decimal digits (e.g. 2 for 87.33).
  * @throws {Error}             If either year is not a positive integer, or
  *                             startYear > endYear.
  */

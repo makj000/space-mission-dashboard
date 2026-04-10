@@ -157,8 +157,8 @@ Code must include the following functions with **exact** function signatures and
   ```
 
 ## 6. Precision
-Use 5 digits of precision for each float, 5 specifically, so if the output is an average, such as in function 8 in this instruction file
-output something like 87.33333
+Use a configurable digits of precision (default to 2) for each float, so if the output is an average, such as in function 8 in this instruction file
+output something like 87.33
 
 ## 7. Validation
 - Add input validation to your functions: missing value, invalid format 

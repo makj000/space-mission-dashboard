@@ -10,8 +10,9 @@ const UI = (() => {
     const total = rows.length;
 
     const successCount = rows.filter(r => r.MissionStatus === 'Success').length;
+    const prec = (typeof Filters !== 'undefined') ? Filters.getPrecision() : 2;
     const successRate  = total > 0
-      ? (successCount / total * 100).toFixed(1) + '%'
+      ? (successCount / total * 100).toFixed(prec) + '%'
       : '—';
 
     const companies = new Set(rows.map(r => r.Company).filter(Boolean));
@@ -45,7 +46,7 @@ const UI = (() => {
         if (years.length > 0) {
           const minY = Math.min(...years);
           const maxY = Math.max(...years);
-          avgPerYear = getAverageMissionsPerYear(minY, maxY).toLocaleString();
+          avgPerYear = getAverageMissionsPerYear(minY, maxY).toFixed(prec);
         }
       } catch (_) {}
     }
