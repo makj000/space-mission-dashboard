@@ -450,19 +450,16 @@ const Charts = (() => {
     if (!ctx) return;
 
     _instances[id] = new Chart(ctx, {
-      type: 'line',
+      type: 'bar',
       data: {
         labels: years,
         datasets: [{
           label: 'Launches',
           data: capped,
+          backgroundColor: _COLOR.time.bg,
           borderColor:     _COLOR.time.border,
-          backgroundColor: _COLOR.time.fill,
-          borderWidth: 2,
-          pointRadius: years.length > 40 ? 2 : 4,
-          pointHoverRadius: 6,
-          fill: true,
-          tension: 0.3
+          borderWidth: 1,
+          borderRadius: 3
         }]
       },
       options: {
@@ -545,19 +542,16 @@ const Charts = (() => {
     if (!ctx) return;
 
     _instances[id] = new Chart(ctx, {
-      type: 'line',
+      type: 'bar',
       data: {
         labels: years,
         datasets: [{
           label: 'Avg Cost (M$)',
           data: capped,
+          backgroundColor: _COLOR.time.bg,
           borderColor:     _COLOR.time.border,
-          backgroundColor: _COLOR.time.fill,
-          borderWidth: 2,
-          pointRadius: years.length > 30 ? 2 : 4,
-          pointHoverRadius: 6,
-          fill: true,
-          tension: 0.3
+          borderWidth: 1,
+          borderRadius: 3
         }]
       },
       options: {
