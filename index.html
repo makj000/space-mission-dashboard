@@ -29,7 +29,7 @@
     </div>
     <h1>Space Missions Dashboard</h1>
     <button class="btn btn-ghost" id="btn-load">📂 Load CSV</button>
-    <button class="btn btn-ghost" id="btn-reload" disabled title="Refresh page (reloads all code from disk)">↺</button>
+    <button class="btn btn-ghost" id="btn-reload" disabled title="Reload CSV">↺</button>
     <input type="file" id="csv-input" accept=".csv" style="display:none" />
     <div id="file-info">
       <span id="file-status" class="status-idle">No file loaded</span>
@@ -357,14 +357,23 @@
       await _streamLoad(cb => DataStore.loadFromFileStreaming(file, cb));
     });
 
-    reloadBtn.addEventListener('click', () => {
-      // Save the current filename so the post-refresh hint can display it.
-      // File objects cannot survive a page reload (browser security), so we
-      // store only the name for display — the user will need to re-pick the file.
-      const fileName = DataStore.getFileName();
-      if (fileName) sessionStorage.setItem('_relyPageRefreshed', fileName);
-      location.reload();   // re-reads HTML, JS, and CSS from disk
+    reloadBtn.addEventListener('click', async () => {
+      setStatus('Reloading…', 'status-idle');
+      Charts.destroy();
+      // Note: do NOT call DataStore.clear() here — reload() needs _lastFile intact
+      await _streamLoad(cb => DataStore.reload(cb));
     });
+
+    // ── Version badge — click to refresh all source code from disk ────────────
+    if (verEl) {
+      verEl.style.cursor = 'default';
+      verEl.title = 'Click to refresh page source (reloads all code from disk)';
+      verEl.addEventListener('click', () => {
+        const fileName = DataStore.getFileName();
+        if (fileName) sessionStorage.setItem('_relyPageRefreshed', fileName);
+        location.reload();
+      });
+    }
   </script>
 
 </body>
