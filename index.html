@@ -56,8 +56,10 @@
     <select id="filter-location"><option value="">All</option></select>
     <div class="filter-sep"></div>
     <button class="btn btn-secondary" id="btn-reset-filters">Reset</button>
-    <label>Precision</label>
-    <input type="number" id="filter-precision" min="0" step="1" value="2" title="Decimal places for float values (non-negative integer)">
+    <span class="filter-precision-group">
+      <label>Precision</label>
+      <input type="number" id="filter-precision" min="0" step="1" maxlength="1" value="2" title="Decimal places for float values (non-negative integer)">
+    </span>
     <button class="btn btn-secondary" id="btn-export-csv">⬇ Export CSV</button>
   </div>
 
@@ -357,8 +359,9 @@
       const file = e.target.files[0];
       if (!file) return;
 
+      // file size limit
       const sizeMB = file.size / (1024 * 1024);
-      if (sizeMB > 100) {
+      if (sizeMB > 50) {
         setStatus(`⚠ File too large (${sizeMB.toFixed(1)} MB) — max 100 MB`, 'status-error');
         UI.showBanner(`File exceeds the 100 MB limit (${sizeMB.toFixed(1)} MB). Please use a smaller file.`, 'error');
         return;

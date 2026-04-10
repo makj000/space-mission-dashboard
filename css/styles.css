@@ -162,8 +162,16 @@ nav a:hover { color: #fff; }
   flex-shrink: 0;
 }
 
+.filter-precision-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 #filter-precision {
-  width: 4rem;
+  width: 2rem;
   text-align: center;
 }
 
