@@ -878,6 +878,229 @@ const Charts = (() => {
     _addDblClickFilter(id, 'year');
   }
 
+  // ── Dynamic Chart Builder ────────────────────────────────────────────────
+  //
+  // Renders a single configurable chart from any combination of:
+  //   groupBy  : year | company | location | rocket | rocketStatus | missionStatus
+  //   metric   : count | successRate | failureCount | avgCost | totalCost
+  //   chartType: bar | barH | line | pie
+  //   topN     : integer (only applied for non-temporal groupings)
+
+  function _renderDynamic(rows, config) {
+    const id = 'chart-dynamic';
+    _destroy(id);
+
+    const noteEl = document.getElementById('chart-dynamic-note');
+    if (noteEl) noteEl.textContent = '';
+
+    if (!rows || rows.length === 0) {
+      UI.showEmpty(document.getElementById('chart-dynamic-wrap'));
+      return;
+    }
+
+    const { groupBy = 'year', metric = 'count', chartType = 'bar', topN = 15 } = config || {};
+    const prec = (typeof Filters !== 'undefined') ? Filters.getPrecision() : 2;
+
+    // ── aggregate ────────────────────────────────────────────────────────────
+    const groups = {};
+    for (const r of rows) {
+      let key = null;
+      if      (groupBy === 'year')          { const d = (r.Date||'').trim(); if (d) { const y = d.slice(0,4); if (/^\d{4}$/.test(y)) key = y; } }
+      else if (groupBy === 'company')       { key = (r.Company      ||'').trim() || null; }
+      else if (groupBy === 'location')      { key = (r.Location     ||'').trim() || null; }
+      else if (groupBy === 'rocket')        { key = (r.Rocket       ||'').trim() || null; }
+      else if (groupBy === 'rocketStatus')  { key = (r.RocketStatus ||'').trim() || null; }
+      else if (groupBy === 'missionStatus') { key = (r.MissionStatus||'').trim() || null; }
+      if (!key) continue;
+      if (!groups[key]) groups[key] = { count:0, success:0, failure:0, costSum:0, costCount:0 };
+      groups[key].count++;
+      if ((r.MissionStatus||'').trim() === 'Success') groups[key].success++;
+      else groups[key].failure++;
+      const p = parseFloat(r.Price);
+      if (isFinite(p) && p > 0) { groups[key].costSum += p; groups[key].costCount++; }
+    }
+
+    if (Object.keys(groups).length === 0) {
+      UI.showEmpty(document.getElementById('chart-dynamic-wrap'), 'No data for the selected grouping.');
+      return;
+    }
+
+    // ── compute metric value per group ───────────────────────────────────────
+    function _val(g) {
+      switch (metric) {
+        case 'count':       return g.count;
+        case 'successRate': return g.count > 0 ? parseFloat((g.success / g.count * 100).toFixed(prec)) : 0;
+        case 'failureCount':return g.failure;
+        case 'avgCost':     return g.costCount > 0 ? parseFloat((g.costSum / g.costCount).toFixed(prec)) : null;
+        case 'totalCost':   return g.costCount > 0 ? parseFloat(g.costSum.toFixed(prec)) : null;
+        default:            return g.count;
+      }
+    }
+
+    // ── sort / slice ─────────────────────────────────────────────────────────
+    const isTemporal = (groupBy === 'year');
+    let entries = Object.entries(groups)
+      .map(([k, g]) => ({ key: k, value: _val(g), group: g }))
+      .filter(e => e.value !== null);
+
+    if (isTemporal) {
+      entries.sort((a, b) => a.key.localeCompare(b.key));
+    } else {
+      entries.sort((a, b) => b.value - a.value || a.key.localeCompare(b.key));
+      const n = Math.max(1, parseInt(topN) || 15);
+      entries = entries.slice(0, n);
+    }
+
+    if (entries.length === 0) {
+      UI.showEmpty(document.getElementById('chart-dynamic-wrap'), 'No data for the selected metric.');
+      return;
+    }
+
+    // ── labels ───────────────────────────────────────────────────────────────
+    const fullLabels = entries.map(e => e.key);
+    const labels = fullLabels.map(k => {
+      if (groupBy === 'location') {
+        const parts = k.split(',');
+        return parts.length > 2 ? parts.slice(0, 2).join(',').trim() : k;
+      }
+      return k;
+    });
+    const rawValues = entries.map(e => e.value);
+
+    // ── color ────────────────────────────────────────────────────────────────
+    const colorKey = groupBy === 'year' ? 'time' : groupBy === 'location' ? 'location' : 'company';
+    const color = _COLOR[colorKey];
+
+    // ── outlier capping ──────────────────────────────────────────────────────
+    let displayValues = rawValues;
+    let capValue = null;
+    let hasOutliers = false;
+    if (chartType !== 'pie' && metric !== 'successRate') {
+      const capped = _capOutliers(rawValues);
+      displayValues = capped.capped;
+      capValue      = capped.capValue;
+      hasOutliers   = capped.hasOutliers;
+    }
+
+    // ── background colors ────────────────────────────────────────────────────
+    const PIE_COLORS = [
+      'rgba(67,97,238,.8)',  'rgba(247,37,133,.8)', 'rgba(114,9,183,.8)',
+      'rgba(6,214,160,.8)',  'rgba(255,209,102,.8)','rgba(239,35,60,.8)',
+      'rgba(76,201,240,.8)', 'rgba(3,4,94,.8)',     'rgba(255,128,0,.8)',
+      'rgba(0,180,100,.8)'
+    ];
+    const bgColors = chartType === 'pie'
+      ? entries.map((_, i) => PIE_COLORS[i % PIE_COLORS.length])
+      : _bgColors(rawValues, displayValues, color.bg, color.border);
+
+    // ── value formatter ──────────────────────────────────────────────────────
+    const _fmt = v =>
+      metric === 'successRate'                         ? `${v}%`
+      : (metric === 'avgCost' || metric === 'totalCost') ? `$${v.toLocaleString()}M`
+      : v.toLocaleString();
+
+    const _yTickFmt = v =>
+      metric === 'successRate'                         ? `${v}%`
+      : (metric === 'avgCost' || metric === 'totalCost') ? `$${v}M`
+      : v;
+
+    const ctx = document.getElementById(id);
+    if (!ctx) return;
+
+    // ── render ───────────────────────────────────────────────────────────────
+    if (chartType === 'pie') {
+      _instances[id] = new Chart(ctx, {
+        type: 'doughnut',
+        data: { labels, datasets: [{ data: displayValues, backgroundColor: bgColors, borderWidth: 2 }] },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { font: _font, padding: 12 } },
+            tooltip: { callbacks: {
+              title:  ctx => [fullLabels[ctx[0].dataIndex]],
+              label(ctx) {
+                const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                const pct   = total > 0 ? (ctx.parsed / total * 100).toFixed(1) : 0;
+                return ` ${_fmt(rawValues[ctx.dataIndex])} (${pct}%)`;
+              }
+            }}
+          }
+        }
+      });
+    } else {
+      const isLine  = chartType === 'line';
+      const isHoriz = chartType === 'barH';
+      const isSuccessRate = metric === 'successRate';
+
+      _instances[id] = new Chart(ctx, {
+        type: isLine ? 'line' : 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: ({count:'Mission Count',successRate:'Success Rate (%)',failureCount:'Failure Count',avgCost:'Avg Cost (M$)',totalCost:'Total Cost (M$)'})[metric],
+            data:            displayValues,
+            backgroundColor: isLine ? color.fill : bgColors,
+            borderColor:     color.border,
+            borderWidth:     isLine ? 2 : 1,
+            borderRadius:    isLine ? 0 : 3,
+            fill:            isLine,
+            tension:         isLine ? 0.3 : 0,
+            pointRadius:     isLine ? (entries.length > 60 ? 0 : 3) : 0,
+            pointHoverRadius:isLine ? 5 : 0
+          }]
+        },
+        options: {
+          indexAxis: isHoriz ? 'y' : 'x',
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: {
+              title: ctx => [fullLabels[ctx[0].dataIndex]],
+              label(ctx) {
+                const real = rawValues[ctx.dataIndex];
+                const disp = displayValues[ctx.dataIndex];
+                const suffix = real !== disp ? ` (actual: ${_fmt(real)})` : '';
+                return ` ${_fmt(real)}${suffix}`;
+              },
+              afterLabel: isSuccessRate
+                ? ctx => { const g = entries[ctx.dataIndex].group; return `${g.success} / ${g.count} missions`; }
+                : undefined
+            }}
+          },
+          scales: {
+            // For horizontal bars (indexAxis:'y'), the VALUE axis is X and the CATEGORY axis is Y.
+            // For vertical bars / line (indexAxis:'x'), the VALUE axis is Y and CATEGORY is X.
+            x: {
+              ticks: {
+                font: _font,
+                maxRotation: isHoriz ? 0 : 45,
+                autoSkip: true,
+                maxTicksLimit: isTemporal ? 20 : 15,
+                ...(isHoriz ? { callback: _yTickFmt } : {})
+              },
+              grid: { color: '#e2e8f0' },
+              ...(isSuccessRate &&  isHoriz ? { min: 0, max: 100 } : {}),
+              ...(capValue       &&  isHoriz ? { max: capValue * 1.05 } : {})
+            },
+            y: {
+              ticks: {
+                font: _font,
+                ...(!isHoriz ? { callback: _yTickFmt } : {})
+              },
+              grid:  { color: isHoriz ? 'transparent' : '#e2e8f0' },
+              ...(isSuccessRate && !isHoriz ? { min: 0, max: 100 } : {}),
+              ...(capValue      && !isHoriz ? { max: capValue * 1.05 } : {})
+            }
+          }
+        }
+      });
+    }
+
+    if (hasOutliers && noteEl) {
+      noteEl.textContent = '* Striped bar is scaled down — actual value shown in tooltip.';
+    }
+  }
+
   // ── Public API ───────────────────────────────────────────────────────────────
 
   function init(rows) {
@@ -924,5 +1147,7 @@ const Charts = (() => {
     Object.keys(_instances).forEach(_destroy);
   }
 
-  return { init, initProgressive, destroy, highlight, clearHighlight, highlightYear, clearYearHighlight };
+  function renderDynamic(rows, config) { _renderDynamic(rows, config); }
+
+  return { init, initProgressive, destroy, highlight, clearHighlight, highlightYear, clearYearHighlight, renderDynamic };
 })();

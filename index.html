@@ -177,6 +177,54 @@
 
     </div>
 
+    <!-- ── Dynamic Chart Builder ─────────────────────────────────────────── -->
+    <div class="chart-card chart-builder-card">
+      <div class="cb-header">
+        <h3>Chart Builder</h3>
+        <p class="chart-sub">Pick any combination of dimension and metric — the chart updates instantly and respects the active filters above.</p>
+      </div>
+      <div class="cb-controls">
+        <div class="cb-control">
+          <label for="cb-group-by">Group by</label>
+          <select id="cb-group-by">
+            <option value="year">Year</option>
+            <option value="company">Company</option>
+            <option value="location">Location</option>
+            <option value="rocket">Rocket</option>
+            <option value="rocketStatus">Rocket Status</option>
+            <option value="missionStatus">Mission Status</option>
+          </select>
+        </div>
+        <div class="cb-control">
+          <label for="cb-metric">Show</label>
+          <select id="cb-metric">
+            <option value="count">Mission Count</option>
+            <option value="successRate">Success Rate (%)</option>
+            <option value="failureCount">Failure Count</option>
+            <option value="avgCost">Avg Cost (M$)</option>
+            <option value="totalCost">Total Cost (M$)</option>
+          </select>
+        </div>
+        <div class="cb-control" id="cb-topn-wrap">
+          <label for="cb-topn">Top N</label>
+          <input type="number" id="cb-topn" min="1" max="100" value="15" />
+        </div>
+        <div class="cb-control">
+          <label>Chart type</label>
+          <div class="cb-type-group">
+            <button class="cb-type active" data-type="bar">Bar</button>
+            <button class="cb-type" data-type="barH">Horiz.</button>
+            <button class="cb-type" data-type="line">Line</button>
+            <button class="cb-type" data-type="pie">Pie</button>
+          </div>
+        </div>
+      </div>
+      <div class="chart-wrap" id="chart-dynamic-wrap">
+        <canvas id="chart-dynamic"></canvas>
+      </div>
+      <div class="outlier-note" id="chart-dynamic-note"></div>
+    </div>
+
     <!-- Data table -->
     <div class="table-card">
       <div class="table-card-header">
@@ -408,6 +456,7 @@
           if (progressEl) progressEl.style.setProperty('--load-pct', pct + '%');
         });
         Table.render(filtered);
+        _updateDynamicChart();
         const sizeTxt = info.sizeMB > 0 ? ` · ${info.sizeMB.toFixed(1)} MB` : '';
         setStatus(`✓ ${info.fileName}${sizeTxt} · ${info.rows.length.toLocaleString()} rows`, 'status-ok');
         _setLoadBtn('loaded');
@@ -417,6 +466,74 @@
         UI.showLanding();
       }
     })();
+
+    // ── Dynamic Chart Builder wiring ─────────────────────────────────────────
+    const _cbGroupBy  = document.getElementById('cb-group-by');
+    const _cbMetric   = document.getElementById('cb-metric');
+    const _cbTopN     = document.getElementById('cb-topn');
+    const _cbTopNWrap = document.getElementById('cb-topn-wrap');
+    const _cbTypeBtns = document.querySelectorAll('.cb-type');
+
+    let _cbChartType = 'bar'; // tracks the active chart type button
+
+    const _TEMPORAL_GROUPS   = new Set(['year']);
+    const _FEW_VALUE_GROUPS  = new Set(['rocketStatus', 'missionStatus']);
+    const _MANY_VALUE_GROUPS = new Set(['company', 'location', 'rocket']);
+
+    // Smart default chart type for each groupBy
+    function _defaultChartType(groupBy) {
+      if (_TEMPORAL_GROUPS.has(groupBy))  return 'line';
+      if (_FEW_VALUE_GROUPS.has(groupBy)) return 'pie';
+      return 'barH';
+    }
+
+    function _setActiveType(type) {
+      _cbChartType = type;
+      _cbTypeBtns.forEach(b => b.classList.toggle('active', b.dataset.type === type));
+    }
+
+    function _getCbConfig() {
+      return {
+        groupBy:   _cbGroupBy.value,
+        metric:    _cbMetric.value,
+        chartType: _cbChartType,
+        topN:      parseInt(_cbTopN.value) || 15
+      };
+    }
+
+    function _updateDynamicChart() {
+      if (!DataStore.isLoaded()) return;
+      Charts.renderDynamic(Filters.getFiltered(), _getCbConfig());
+    }
+
+    // Show/hide Top N and auto-select chart type when groupBy changes
+    _cbGroupBy.addEventListener('change', () => {
+      const g = _cbGroupBy.value;
+      _cbTopNWrap.style.display = _MANY_VALUE_GROUPS.has(g) ? '' : 'none';
+      _setActiveType(_defaultChartType(g));
+      _updateDynamicChart();
+    });
+
+    _cbMetric.addEventListener('change',  _updateDynamicChart);
+    _cbTopN.addEventListener('input',     _updateDynamicChart);
+
+    _cbTypeBtns.forEach(btn => btn.addEventListener('click', () => {
+      _setActiveType(btn.dataset.type);
+      _updateDynamicChart();
+    }));
+
+    // Hook into filter changes: wrap Filters.apply so dynamic chart also re-renders
+    // (deferred until after modules are guaranteed loaded)
+    requestAnimationFrame(() => {
+      if (typeof Filters !== 'undefined' && Filters.apply) {
+        const _origApply = Filters.apply.bind(Filters);
+        Filters.apply = function(...args) {
+          const result = _origApply(...args);
+          _updateDynamicChart();
+          return result;
+        };
+      }
+    });
 
     // ── Version badge — click to refresh all source code from disk ────────────
     if (verEl) {
