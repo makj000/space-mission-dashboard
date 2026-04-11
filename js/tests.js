@@ -635,6 +635,50 @@ const TEST_CASES = [
         return { passed: e instanceof Error, actual: `Error: ${e.message}`, expected: 'Error thrown' };
       }
     }
+  },
+
+  // ── full_ tests: only run when DataStore has >100 rows (full CSV loaded) ──────
+  // These verify the Artemis II row added to data/space_missions.csv on 2026-04-01.
+
+  {
+    id: 'full_fn6_2026',
+    fn: 'getMissionsByYear',
+    description: '[full CSV] 2026 → 1 mission (Artemis II)',
+    run() {
+      const actual   = getMissionsByYear(2026);
+      const expected = 1;
+      return { passed: actual === expected, actual, expected };
+    }
+  },
+  {
+    id: 'full_fn3_artemis_ii',
+    fn: 'getMissionsByDateRange',
+    description: '[full CSV] 2026-04-01 to 2026-04-01 → ["Artemis II"]',
+    run() {
+      const actual   = getMissionsByDateRange('2026-04-01', '2026-04-01');
+      const expected = ['Artemis II'];
+      const passed   = JSON.stringify(actual) === JSON.stringify(expected);
+      return { passed, actual: JSON.stringify(actual), expected: JSON.stringify(expected) };
+    }
+  },
+  {
+    id: 'full_fn1_nasa_2026',
+    fn: 'getMissionCountByCompany',
+    description: '[full CSV] NASA count includes Artemis II (> 0)',
+    run() {
+      const actual = getMissionCountByCompany('NASA');
+      return { passed: actual > 0, actual, expected: '> 0' };
+    }
+  },
+  {
+    id: 'full_fn2_nasa_rate',
+    fn: 'getSuccessRate',
+    description: '[full CSV] NASA success rate is a float 0–100',
+    run() {
+      const actual = getSuccessRate('NASA');
+      const passed = typeof actual === 'number' && actual >= 0 && actual <= 100;
+      return { passed, actual, expected: 'float 0–100' };
+    }
   }
 ];
 
@@ -722,7 +766,28 @@ async function runTests() {
     </thead>`;
   const tbody = document.createElement('tbody');
 
+  const isFullDataLoaded = DataStore.getData().length > 100;
+  let skipped = 0;
+
   for (const [i, tc] of TEST_CASES.entries()) {
+    const isFull = tc.id.startsWith('full_');
+
+    // full_ tests require the complete CSV; skip them in sample mode
+    if (isFull && !isFullDataLoaded) {
+      skipped++;
+      const tr = document.createElement('tr');
+      tr.className = 'skip';
+      tr.innerHTML = `
+        <td>${i + 1}</td>
+        <td><code>${tc.fn}</code></td>
+        <td>${tc.description}</td>
+        <td>—</td>
+        <td>—</td>
+        <td class="status">⏭ SKIP</td>`;
+      tbody.appendChild(tr);
+      continue;
+    }
+
     let result;
     try {
       result = tc.run();
@@ -752,8 +817,9 @@ async function runTests() {
   table.appendChild(tbody);
   resultsEl.appendChild(table);
 
+  const skipNote = skipped > 0 ? `, ⏭ ${skipped} skipped (load full CSV to run)` : '';
   summaryEl.textContent =
-    `${TEST_CASES.length} tests — ✅ ${passed} passed, ❌ ${failed} failed`;
+    `${TEST_CASES.length} tests — ✅ ${passed} passed, ❌ ${failed} failed${skipNote}`;
   summaryEl.className = failed === 0 ? 'summary-pass' : 'summary-fail';
 
   const tsEl = document.getElementById('run-timestamp');

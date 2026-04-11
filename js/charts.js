@@ -264,6 +264,36 @@ const Charts = (() => {
 
   const _font = { family: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" };
 
+  /**
+   * Returns an x-axis scale config for year-based charts.
+   * Uses a custom tick callback that always shows the first and last label
+   * (ensuring the most recent year is always visible) while skipping
+   * intermediate labels when there are too many to fit.
+   * @param {number} maxVisible  Max number of ticks to show (default 20)
+   */
+  function _yearXAxis(maxVisible) {
+    const max = maxVisible || 20;
+    return {
+      ticks: {
+        font: _font,
+        maxRotation: 45,
+        autoSkip: false,
+        callback: function(value, index) {
+          const labels = this.chart.data.labels;
+          const total  = labels.length;
+          if (total <= max) return labels[index];          // show all if few
+          const step = Math.ceil(total / max);
+          // Always show first and last; show every step-th in between
+          if (index === 0 || index === total - 1 || index % step === 0) {
+            return labels[index];
+          }
+          return null;
+        }
+      },
+      grid: { color: '#e2e8f0' }
+    };
+  }
+
   // ── Chart 1: Top Companies by Mission Count (horizontal bar) ─────────────────
 
   function _renderTopCompanies(rows) {
@@ -574,7 +604,7 @@ const Charts = (() => {
           }
         },
         scales: {
-          x: { ticks: { font: _font, maxRotation: 45, autoSkip: true, maxTicksLimit: 20 }, grid: { color: '#e2e8f0' } },
+          x: _yearXAxis(),
           y: {
             ticks: { font: _font },
             grid:  { color: '#e2e8f0' },
@@ -674,7 +704,7 @@ const Charts = (() => {
           }
         },
         scales: {
-          x: { ticks: { font: _font, maxRotation: 45, autoSkip: true, maxTicksLimit: 20 }, grid: { color: '#e2e8f0' } },
+          x: _yearXAxis(),
           y: {
             ticks: { font: _font, callback: v => `$${parseFloat(v.toFixed(2))}M` },
             grid:  { color: '#e2e8f0' },
@@ -858,10 +888,7 @@ const Charts = (() => {
           }
         },
         scales: {
-          x: {
-            ticks: { font: _font, maxRotation: 45, autoSkip: true, maxTicksLimit: 20 },
-            grid: { color: '#e2e8f0' }
-          },
+          x: _yearXAxis(),
           y: {
             min: 0,
             max: 100,

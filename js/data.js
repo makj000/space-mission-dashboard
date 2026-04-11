@@ -37,7 +37,16 @@ const DataStore = (() => {
       if (results.errors.length > 0) {
         console.warn('CSV parse warnings:', results.errors);
       }
-      _rows     = results.data;
+      // Trim leading/trailing whitespace from every string field so that
+      // manually edited rows with extra spaces don't break equality checks.
+      _rows = results.data.map(row => {
+        const clean = {};
+        for (const key of Object.keys(row)) {
+          const val = row[key];
+          clean[key] = typeof val === 'string' ? val.trim() : val;
+        }
+        return clean;
+      });
       _loaded   = true;
       _fileName = fileName;
       resolve({ rows: _rows, fileName, sizeMB });
@@ -90,7 +99,7 @@ const DataStore = (() => {
   function loadFromURL(url, fileName) {
     const name = fileName || url.split('/').pop();
     return new Promise((resolve, reject) => {
-      fetch(url)
+      fetch(url, { cache: 'no-store' })
         .then(response => {
           if (!response.ok) {
             reject(new Error(`Could not fetch "${url}": HTTP ${response.status}`));
@@ -166,7 +175,15 @@ const DataStore = (() => {
             }
           }
           if (results.errors.length > 0) console.warn('CSV chunk warnings:', results.errors);
-          Array.prototype.push.apply(_rows, results.data);
+          const trimmed = results.data.map(row => {
+            const clean = {};
+            for (const key of Object.keys(row)) {
+              const val = row[key];
+              clean[key] = typeof val === 'string' ? val.trim() : val;
+            }
+            return clean;
+          });
+          Array.prototype.push.apply(_rows, trimmed);
           // Use PapaParse's real byte cursor when available; fall back to the
           // CHUNK_SIZE accumulator so progress is always accurate.
           bytesLoaded = (results.meta && results.meta.cursor)
