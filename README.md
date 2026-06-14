@@ -10,6 +10,10 @@ An interactive, fully offline browser dashboard for exploring and analysing hist
 
 Load a CSV of space mission records and instantly get seven interactive charts, six filter controls, six summary stat cards, a searchable/sortable data table, and eight analytical functions — all running locally in your browser.
 
+## Screenshot
+
+![Space Missions Dashboard](screenshot.jpeg)
+
 ---
 
 ## Quick Start
